@@ -25,8 +25,12 @@
 #' Arguments to `.$fit()`:
 #' @param task [\code{\link[mlr]{Task}}]\cr
 #'   The task to be trained.
+#' @param control [\code{\link[mlrMBO]{MBOControl}}]\cr
+#'   Control object for optimizer.
+#'   If not specified, the default \code{\link[mlrMBO]{makeMBOControl}}] object will be used with
+#'   \code{iterations} maximum iterations and a maximum runtime of \code{time.budget} seconds.
 #' @param iterations [\code{integer(1L}]\cr
-#'   Number of MBO iterations to do. Will be ignored if custom \code{control} is used.
+#'   Number of MBO iterations to do. Will be ignored if a custom \code{MBOControl} is used.
 #'   Default is \code{160}.
 #' @param time.budget [\code{integer(1L}]\cr
 #'   Time that can be used for tuning (in seconds). Will be ignored if a custom \code{control} is used.
@@ -34,10 +38,6 @@
 #' @param build.final.model [\code{logical(1)}]\cr
 #'   Should the model with the best found configuration be refitted on the complete dataset?
 #'   Default is \code{FALSE}.
-#' @param control [\code{\link[mlrMBO]{MBOControl}}]\cr
-#'   Control object for optimizer.
-#'   If not specified, the default \code{\link[mlrMBO]{makeMBOControl}}] object will be used with
-#'   \code{iterations} maximum iterations and a maximum runtime of \code{time.budget} seconds.
 #'
 #' Additional arguments that control the process:
 #' @param mbo.learner [\code{\link[mlr]{Learner}}]\cr
@@ -49,7 +49,7 @@
 #'   Size of the initial design. Default is \code{15L}.
 #'   Can be set via `.$set_design_size()`
 #' @param max.nrounds [\code{integer(1)}]\cr
-#'   Maximum number of allowed boosting iterations. Default is \code{10^6}.
+#'   Maximum number of allowed boosting iterations. Default is \code{3000}.
 #'   Can be set via `.$set_max_nrounds()`.
 #' @param early.stopping.rounds [\code{integer(1L}]\cr
 #'   After how many iterations without an improvement in the boosting OOB error should be stopped?
@@ -87,6 +87,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     mbo.learner = NULL,
     iterations = NULL,
     time.budget = NULL,
+    task = NULL,
 
     max.nrounds = 3*10^3L,
     early.stopping.rounds = 20L,
@@ -103,37 +104,58 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     optim.result = NULL,
     build.final.model = NULL,
 
-    initialize = function(measures = NULL, parset = NULL, nthread = NULL) {
+    initialize = function(task, measures = NULL, parset = NULL, nthread = NULL) {
+      self$task = assert_class(task, "SupervisedTask")
       assert_list(measures, types = "Measure", null.ok = TRUE)
       assert_class(parset, "ParamSet", null.ok = TRUE)
       # Set defaults
-      self$measures = coalesce(measures, list(getDefaultMeasure(task)))
+      measures = coalesce(measures, list(getDefaultMeasure(task)))
+      self$measures = lapply(measures, self$set_measure_bounds)
       self$parset = coalesce(parset, autoxgboostMC::autoxgbparset)
       self$nthread = assert_integerish(nthread, lower = 1, len = 1L, null.ok = TRUE)
+      
     },
     print = function(...) {
       catf("AutoxgboostMC Learner")
       catf("Trained: %s", ifelse(is.null(self$model), "no", "yes"))
       if (!is.null(self$model)) print(self$model)
     },
-    fit = function(task, iterations = 160L, time.budget = 3600L, build.final.model = TRUE, control = NULL) {
-      assert_class(task, "SupervisedTask")
+    fit = function(iterations = 160L, time.budget = 3600L, build.final.model = TRUE, control = NULL) {
       self$iterations = assert_integerish(iterations)
       self$time.budget = assert_integerish(time.budget)
       self$build.final.model = assert_flag(build.final.model)
       self$control = control
 
       if (!is.null(self$model)) {
-        self$continue_fit()
+        self$continue_fit(iterations = iterations, time.budget = time.budget, build.final.model = TRUE)
       } else {
-      self$baselearner = self$make_baselearner(task)
-      transf_tasks = self$build_transform_pipeline(task)
+      self$baselearner = self$make_baselearner(self$task)
+      transf_tasks = self$build_transform_pipeline(self$task)
       self$baselearner = setHyperPars(self$baselearner, early.stopping.data = transf_tasks$task.test)
       self$obj_fun = self$make_objective_function(transf_tasks)
       self$optim.result = self$optimize_pipeline_mbo()
       }
       lrn = self$build_final_learner()
       mod = NULL
+      if(build.final.model) mod = train(lrn, self$task)
+      self$model = AutoxgbResult$new(
+        optim_result = self$optim.result,
+        final_learner = lrn,
+        final_model = mod,
+        measures = self$measures,
+        preproc_pipeline =  self$preproc_pipeline
+      )
+    },
+    continue_fit = function(task, iterations = 10L, time.budget = 36L, build.final.model = TRUE) {
+      iteration = 0L
+      time.start = Sys.time()
+      while(it < iterations && time.left > 0L) {
+        prop = proposePoints(self$optim_result$final.opt.state)
+        x = dfRowsToList(df = prop$prop.points, par.set = ps)
+        y = do.call(f, x[[1]])
+        updateSMBO(self$optim_result$final.opt.state, x = prop$prop.points, y = y)
+        time.left = ceiling(as.numeric(Sys.time() - time.start))
+      }
       if(build.final.model) mod = train(lrn, task)
       self$model = AutoxgbResult$new(
         optim_result = self$optim.result,
@@ -143,10 +165,11 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         preproc_pipeline =  self$preproc_pipeline
       )
     },
-    continue_fit = function(task, iterations = 160L, time.budget = 3600L, build.final.model = TRUE) {
-    },
     predict = function(newdata) {
       predict(self$model$final_model, newdata)
+    },
+    shine = function(newdata) {
+      shiny::shinyApp(ui = ui, server = server)
     },
 
     # AutoxgboostMC steps
@@ -300,6 +323,14 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     },
 
     # Setters for various hyperparameters
+    set_measure_bounds = function(measure, best_valid = NULL, worst_valid = NULL) {
+      if(is.null(best_valid)  & is.null(measure$best_valid))  measure$best_valid = measure$best
+      else measure$best_valid = best_valid
+      if(is.null(worst_valid) & is.null(measure$worst_valid)) measure$best_valid = measure$best
+      else measure$worst_valid = worst_valid
+      if(is.null(measure$weight)) measure$weight = 1L
+      return(measure)
+    },
     set_max_nrounds = function(value) {
        self$max.nrounds = assert_integerish(value, lower = 1L, len = 1L)
     },
@@ -373,6 +404,9 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     },
     measure_ids = function() {
       sapply(self$measures, function(x) x$id)
+    }, 
+    measure_minimize = function() {
+      sapply(self$measures, function(x) x$minimize)
     }
   )
 )

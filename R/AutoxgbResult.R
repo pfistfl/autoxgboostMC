@@ -34,7 +34,6 @@ AutoxgbResult = R6::R6Class("AutoxgbResult",
     op = self$optim_result$opt.path
     pars = trafoValue(op$par.set, self$optim_result$x)
     pars$nrounds = self$get_best_from_opt("nrounds")
-    thr = self$get_best_from_opt(".threshold")
     catf("Autoxgboost tuning result")
     catf("Recommended parameters:")
     for (p in names(pars)) {
@@ -46,12 +45,14 @@ AutoxgbResult = R6::R6Class("AutoxgbResult",
         catf("%s: %s", stringi::stri_pad_left(p, width = 17), pars[p])
       }
     }
+    
     catf("\n\nPreprocessing pipeline:")
         print(self$preproc_pipeline)
     # FIXME: Nice Printer for results:
     catf("\nWith tuning result:")
     for (i in seq_along(self$measures)) catf("    %s = %.3f", self$measures[[i]]$id, self$optim_result$y[[i]])
 
+    thr = self$get_best_from_opt(".threshold")
     if (!is.null(thr)) {
       if (length(thr) == 1) {
         catf("\nClassification Threshold: %.3f", thr)
@@ -68,7 +69,7 @@ AutoxgbResult = R6::R6Class("AutoxgbResult",
   get_tune_results = function() {
     as.data.frame(self$optim_result$opt.path)
   },
-  plot_pareto_front = function(x = NULL, y = NULL, color = NULL) {
+  plot_pareto_front = function(x = NULL, y = NULL, color = NULL, plotly = TRUE) {
     df = self$get_tune_results()
     assert_choice(x, colnames(df), null.ok = TRUE)
     assert_choice(y, colnames(df), null.ok = TRUE)
@@ -76,22 +77,23 @@ AutoxgbResult = R6::R6Class("AutoxgbResult",
     if (is.null(x)) x = self$measure_ids[1]
     if (is.null(y) & length(self$measures) >= 2L) y = self$measure_ids[2]
     
-    p = ggplot2::ggplot(df, aes_string(x = x, y = y, color = color)) +
+    p = ggplot2::ggplot(df, ggplot2::aes_string(x = x, y = y, color = color)) +
     ggplot2::geom_point() +
     ggplot2::theme_bw()
-
-    return(p)
+    if (plotly) plotly::ggplotly(p)
+    else p
   },
-  plot_results = function() {
+  plot_results = function(plotly = TRUE) {
     df = self$get_tune_results()
     df$iter = seq_len(nrow(df))
-    pdf =  reshape2::melt(df[, self$measure_ids],
+    pdf =  reshape2::melt(df[, c("iter", self$measure_ids)],
       variable.name = "measure",
       value.names = "value", id.vars = "iter")
-    ggplot2::ggplot(pdf, aes(x = value, y = measure, color = measure)) +
+    p = ggplot2::ggplot(pdf, ggplot2::aes(x = measure, y = value, color = measure)) +
       ggplot2::geom_boxplot() +
       ggplot2::theme_bw()
-
+    if (plotly) plotly::ggplotly(p)
+    else p
   },
   get_best_from_opt = function(what) {
     self$optim_result$opt.path$env$extra[[self$optim_result$best.ind]][[what]]

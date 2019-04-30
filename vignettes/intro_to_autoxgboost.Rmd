@@ -17,7 +17,9 @@ knitr::opts_chunk$set(
 ```
 
 
-## Single-Criteria Optimization AutoxgboostMC
+
+
+## Scenario 1: Optimizing Area under the Curve
 
 ```{r}
 axgb = AutoxgboostMC$new(measures = list(auc))
@@ -25,7 +27,31 @@ axgb$fit(pid.task, time.budget = 5L)
 p = axgb$predict(iris.task)
 ```
 
-## Multi-Criteria Optimization AutoxgboostMC
+
+## Scenario 2: Optimizing Accuracy and Prediction Speed
+```{r}
+axgb = AutoxgboostMC$new(pid.task, measures = list(auc, timepredict))
+axgb$shine()
+axgb$fit(, time.budget = 5L)
+p = axgb$predict(iris.task)
+
+axgb$optim.result$pareto.front
+axgb$optim.result$pareto.set
+axgb$optim.result$pareto.inds
+``` 
+## Scenario 3: Predictive Accuracy and Fairness
+
+```{r}
+axgb = AutoxgboostMC$new(measures = list(acc, fairf1))
+axgb$fit(pid.task, time.budget = 5L)
+p = axgb$predict(iris.task)
+
+axgb$optim.result$pareto.front
+axgb$optim.result$pareto.set
+axgb$optim.result$pareto.inds
+``` 
+
+## Scenario 4: Interpretability and Predictive Accuracy 
 
 ```{r}
 axgb = AutoxgboostMC$new(measures = list(auc, timepredict))
@@ -36,3 +62,29 @@ axgb$optim.result$pareto.front
 axgb$optim.result$pareto.set
 axgb$optim.result$pareto.inds
 ```
+
+## Scenario 5: Optimizing a subjective measure.
+
+In this scenario, we aim to find a model, that optimizes a measure we can not compute directly from the data, as it heavily depends of our current judgement of the proposed models. This might be a measure that can for example be described as follows: 
+"I want a model that achieves a very low false positive rate. It needs to be interpretable and fair with respect to a certain characteristic (i.e. the variable race).
+Additionally, after looking at diagnosis plots, I can determine, that the relationships my model learns do correspond to the true underlying process,and thus provide a numerical rating for each model."
+
+As a user usually can not look at all intermediate results, we might also want to learn user preferences from a few ratings given by the user and use this data to extrapolate to unrated models, only querying the user for new ratings once in a while.
+
+
+## UI Design Speccs
+
+Tab1: AutoML Process:
+Choose a budget, start the process, visualize progress wrt. some measures
+
+Tab2: Pareto Front
+
+Tab 3: Dataset overview
+
+
+
+
+Architecture: 
+
+
+App: Starts / Controls and Visualizes results
