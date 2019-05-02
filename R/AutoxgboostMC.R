@@ -35,7 +35,7 @@
 #' @param time.budget [\code{integer(1L}]\cr
 #'   Time that can be used for tuning (in seconds). Will be ignored if a custom \code{control} is used.
 #'   Default is \code{3600}, i.e., one hour.
-#' @param build.final.model [\code{logical(1)}]\cr
+#' @param fit_final_model [\code{logical(1)}]\cr
 #'   Should the model with the best found configuration be refitted on the complete dataset?
 #'   Default is \code{FALSE}.
 #'
@@ -101,8 +101,12 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     preproc_pipeline = NULL,
     model = NULL,
     obj_fun = NULL,
-    optim.result = NULL,
-    build.final.model = NULL,
+    opt_state = NULL,
+    opt_result = NULL,
+    final_learner = NULL,
+    final_model = NULL,
+    logger = NULL,
+    watch = NULL,
 
     initialize = function(task, measures = NULL, parset = NULL, nthread = NULL) {
       self$task = assert_class(task, "SupervisedTask")
@@ -113,69 +117,90 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       self$measures = lapply(measures, self$set_measure_bounds)
       self$parset = coalesce(parset, autoxgboostMC::autoxgbparset)
       self$nthread = assert_integerish(nthread, lower = 1, len = 1L, null.ok = TRUE)
-      
+      self$logger = log4r::logger()
+
+      self$baselearner = self$make_baselearner()
+      transf_tasks = self$build_transform_pipeline()
+      self$baselearner = setHyperPars(self$baselearner, early.stopping.data = transf_tasks$task.test)
+      self$obj_fun = self$make_objective_function(transf_tasks)
     },
     print = function(...) {
       catf("AutoxgboostMC Learner")
       catf("Trained: %s", ifelse(is.null(self$model), "no", "yes"))
-      if (!is.null(self$model)) print(self$model)
+      if (!is.null(self$opt_result)) {
+        op = self$opt_result$opt.path
+        pars = trafoValue(op$par.set, self$opt_result$x)
+        pars$nrounds = self$get_best_from_opt("nrounds")
+        catf("Autoxgboost tuning result")
+        catf("Recommended parameters:")
+        for (p in names(pars)) {
+          if (p == "nrounds" || isInteger(op$par.set$pars[[p]])) {
+            catf("%s: %i", stringi::stri_pad_left(p, width = 17), as.integer(pars[p]))
+          } else if (isNumeric(op$par.set$pars[[p]], include.int = FALSE)) {
+            catf("%s: %.3f", stringi::stri_pad_left(p, width = 17), pars[p])
+          } else {
+            catf("%s: %s", stringi::stri_pad_left(p, width = 17), pars[p])
+          }
+        }
+        catf("\n\nPreprocessing pipeline:")
+            print(self$preproc_pipeline)
+        # FIXME: Nice Printer for results:
+        catf("\nWith tuning result:")
+        for (i in seq_along(self$measures)) catf("    %s = %.3f", self$measures[[i]]$id, self$opt_result$y[[i]])
+        thr = self$get_best_from_opt(".threshold")
+        if (!is.null(thr)) {
+          if (length(thr) == 1) {
+            catf("\nClassification Threshold: %.3f", thr)
+          } else {
+            catf("\nClassification Thresholds: %s", paste(names(thr), round(thr, 3), sep = ": ", collapse = "; "))
+          }
+        }
+      }
     },
-    fit = function(iterations = 160L, time.budget = 3600L, build.final.model = TRUE, control = NULL) {
-      self$iterations = assert_integerish(iterations)
-      self$time.budget = assert_integerish(time.budget)
-      self$build.final.model = assert_flag(build.final.model)
-      self$control = control
+    fit = function(iterations = 160L, time.budget = 3600L, fit_final_model = TRUE) {
+      assert_integerish(iterations)
+      assert_integerish(time.budget)
+      assert_flag(fit_final_model)
+      self$watch = Stopwatch$new(time.budget, iterations)
 
-      if (!is.null(self$model)) {
-        self$continue_fit(iterations = iterations, time.budget = time.budget, build.final.model = TRUE)
-      } else {
-      self$baselearner = self$make_baselearner(self$task)
-      transf_tasks = self$build_transform_pipeline(self$task)
-      self$baselearner = setHyperPars(self$baselearner, early.stopping.data = transf_tasks$task.test)
-      self$obj_fun = self$make_objective_function(transf_tasks)
-      self$optim.result = self$optimize_pipeline_mbo()
+      log4r::info(self$logger, "Evaluating initial design")
+      if (is.null(self$opt_state)) {
+        self$opt_state = self$init_smbo()
+        self$watch$increment_iter()
       }
-      lrn = self$build_final_learner()
-      mod = NULL
-      if(build.final.model) mod = train(lrn, self$task)
-      self$model = AutoxgbResult$new(
-        optim_result = self$optim.result,
-        final_learner = lrn,
-        final_model = mod,
-        measures = self$measures,
-        preproc_pipeline =  self$preproc_pipeline
-      )
+
+      log4r::info(self$logger, "Starting MBO")
+      while(!self$watch$stop()) {
+        self$fit_iteration()
+        self$watch$increment_iter()
+      }
+
+      log4r::info(self$logger, "Finalizing MBO")
+      self$opt_result = self$finalize_smbo()
+      self$final_learner = self$build_final_learner()
+      if(fit_final_model) self$fit_final_model()
     },
-    continue_fit = function(task, iterations = 10L, time.budget = 36L, build.final.model = TRUE) {
-      iteration = 0L
-      time.start = Sys.time()
-      while(it < iterations && time.left > 0L) {
-        prop = proposePoints(self$optim_result$final.opt.state)
-        x = dfRowsToList(df = prop$prop.points, par.set = ps)
-        y = do.call(f, x[[1]])
-        updateSMBO(self$optim_result$final.opt.state, x = prop$prop.points, y = y)
-        time.left = ceiling(as.numeric(Sys.time() - time.start))
-      }
-      if(build.final.model) mod = train(lrn, task)
-      self$model = AutoxgbResult$new(
-        optim_result = self$optim.result,
-        final_learner = lrn,
-        final_model = mod,
-        measures = self$measures,
-        preproc_pipeline =  self$preproc_pipeline
-      )
+    fit_iteration = function(plot = TRUE) {
+      prop = proposePoints(self$opt_state)
+      x = Map(f = function(par, pt) {
+        if(!is.null(par$trafo)) par$trafo(pt)
+        else pt
+      }, par = self$parset$pars, pt = dfRowsToList(df = prop$prop.points, par.set = self$parset)[[1]])
+      y = self$obj_fun(x)
+      updateSMBO(self$opt_state, x = prop$prop.points, y = y)
+      if(plot) self$plot_opt_path()
+    },
+    fit_final_model = function() {
+      self$final_model = train(self$final_learner, self$task)
     },
     predict = function(newdata) {
-      predict(self$model$final_model, newdata)
-    },
-    shine = function(newdata) {
-      shiny::shinyApp(ui = ui, server = server)
+      predict(self$final_model, newdata)
     },
 
     # AutoxgboostMC steps
-    make_baselearner = function(task) {
-      tt = getTaskType(task)
-      td = getTaskDesc(task)
+    make_baselearner = function() {
+      tt = getTaskType(self$task)
+      td = getTaskDesc(self$task)
       req_prob_measure = sapply(self$measures, function(x) {
         any(getMeasureProperties(x) == "req.prob")
       })
@@ -206,7 +231,6 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         baselearner = makeLearner("regr.xgboost.earlystop", id = "regr.xgboost.earlystop",
           eval_metric = eval_metric, objective = objective, early_stopping_rounds = self$early.stopping.rounds,
           maximize = !self$early_stopping_measure$minimize, max.nrounds = self$max.nrounds, par.vals = pv)
-
       } else {
         stop("Task must be regression or classification")
       }
@@ -214,11 +238,9 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     },
 
     # Build pipeline
-    build_transform_pipeline = function(task) {
-      has.cat.feats = sum(getTaskDesc(task)$n.feat[c("factors", "ordered")]) > 0
+    build_transform_pipeline = function() {
+      has.cat.feats = sum(getTaskDesc(self$task)$n.feat[c("factors", "ordered")]) > 0
       self$preproc_pipeline = NULLCPO
-      #if (!is.null(task$feature.information$timestamps))
-      #  preproc_pipeline %<>>% cpoExtractTimeStampInformation(affect.names = unlist(task$feature.information$timestamps))
       if (has.cat.feats) {
         self$preproc_pipeline %<>>% generateCatFeatPipeline(task, self$impact.encoding.boundary)
       }
@@ -227,10 +249,10 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       # process data and apply pipeline
       # split early stopping data
       if (is.null(self$resample_instance))
-        self$resample_instance = makeResampleInstance(makeResampleDesc("Holdout", split = self$early.stopping.fraction), task)
+        self$resample_instance = makeResampleInstance(makeResampleDesc("Holdout", split = self$early.stopping.fraction), self$task)
 
-      task.test =  subsetTask(task, self$resample_instance$test.inds[[1]])
-      task.train = subsetTask(task, self$resample_instance$train.inds[[1]])
+      task.test =  subsetTask(self$task, self$resample_instance$test.inds[[1]])
+      task.train = subsetTask(self$task, self$resample_instance$train.inds[[1]])
 
       task.train %<>>% self$preproc_pipeline
       task.test %<>>% retrafo(task.train)
@@ -276,35 +298,36 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         n.objectives = length(self$measures)
       )
     },
-    optimize_pipeline_mbo = function() {
+    init_smbo = function() {
       assert_class(self$control, "MBOControl", null.ok = TRUE)
       # Set defaults
       if (is.null(self$control)) {
         measures_ids = sapply(self$measures, function(x) x$id)
-        ctrl = makeMBOControl(n.objectives = length(self$measures), y.name = measures_ids)
-        self$control = setMBOControlTermination(ctrl, iters = self$iterations,
-          time.budget = self$time.budget)
+        self$control = makeMBOControl(n.objectives = length(self$measures), y.name = measures_ids)
         if (self$is_multicrit) {
-          self$control = setMBOControlMultiObj(self$control, method = "dib",dib.indicator = "eps")
+          self$control = setMBOControlMultiObj(self$control, method = "dib", dib.indicator = "eps")
           self$control = setMBOControlInfill(self$control, crit = makeMBOInfillCritDIB(cb.lambda = 2L))
         }
       }
       des = generateDesign(n = self$design.size, self$parset)
-      optim.result = mbo(fun = self$obj_fun, control = self$control, design = des, learner = self$mbo.learner)
-
+      # Doing one iteration here to evaluate design saves a lot of redundancy.
+      opt_result = mbo(fun = self$obj_fun, design = des, learner = self$mbo.learner, control = setMBOControlTermination(self$control, iters = 1L))
+      return(opt_result$final.opt.state)
+    },
+    finalize_smbo = function() {
+      opt_result = finalizeSMBO(self$opt_state)
       if (self$is_multicrit) {
         # Fill best.ind, x and y using "best on early stopping measure".
-        optim.result$best.ind = self$get_best_ind(optim.result)
-        pars = names(optim.result$opt.path$par.set$pars)
-        optim.result$x = as.list(optim.result$opt.path$env$path[optim.result$best.ind, pars])
-        optim.result$y = as.list(optim.result$opt.path$env$path[optim.result$best.ind, self$measure_ids])
+        opt_result$best.ind = self$get_best_ind(opt_result)
+        pars = names(opt_result$opt.path$par.set$pars)
+        opt_result$x = as.list(opt_result$opt.path$env$path[opt_result$best.ind, pars])
+        opt_result$y = as.list(opt_result$opt.path$env$path[opt_result$best.ind, self$measure_ids])
       }
-      return(optim.result)
+      return(opt_result)
     },
-
     build_final_learner = function() {
       nrounds = self$get_best_from_opt("nrounds")
-      pars = trafoValue(self$parset, self$optim.result$x)
+      pars = trafoValue(self$parset, self$opt_result$x)
       pars = pars[!vlapply(pars, is.na)]
 
       lrn = if (!is.null(self$baselearner$predict.type)) {
@@ -361,32 +384,67 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     set_resample_instance = function(value) {
       self$resample_instance = assert_class(value, "ResampleInstance", null.ok = TRUE)
     },
-    get_best_ind = function(optim.result) {
+    get_best_ind = function(opt_result) {
       # We can either select a best index from the outside
       if (!is.null(self$selected.ind)) best.ind = selected.ind
       # Or auto-choose one according to the early stopping measure
-      if (is.null(optim.result$best.ind)) {
+      if (is.null(opt_result$best.ind)) {
         if (self$early_stopping_measure$minimize) {
-          best.ind = which.min(optim.result$opt.path$env$path[[self$early_stopping_measure$id]])
+          best.ind = which.min(opt_result$opt.path$env$path[[self$early_stopping_measure$id]])
         } else {
-          best.ind = which.max(optim.result$opt.path$env$path[[self$early_stopping_measure$id]])
+          best.ind = which.max(opt_result$opt.path$env$path[[self$early_stopping_measure$id]])
         }
       } else {
-        best.ind = optim.result$best.ind
+        best.ind = opt_result$best.ind
       }
       return(best.ind)
     },
     #Get best value from optimization result
     # @param what [`character(1)`]: "nrounds" or ".threshold"
     get_best_from_opt = function(what) {
-      self$optim.result$opt.path$env$extra[[self$optim.result$best.ind]][[what]]
+      self$opt_result$opt.path$env$extra[[self$opt_result$best.ind]][[what]]
     },
     # Get the iteration parameter of a fitted xboost model with early stopping
     get_best_iteration = function(mod) {
       getLearnerModel(mod, more.unwrap = TRUE)$best_iteration
     },
-    plot_pareto_front = function() {self$model$plot_pareto_front()},
-    plot_results = function() {self$model$plot_results()}
+    plot_pareto_front = function(x = NULL, y = NULL, color = NULL, plotly = TRUE) {
+      df = as.data.frame(self$opt_result$opt.path)
+      assert_choice(x, colnames(df), null.ok = TRUE)
+      assert_choice(y, colnames(df), null.ok = TRUE)
+      assert_choice(color, colnames(df), null.ok = TRUE)
+      if (is.null(x)) x = self$measure_ids[1]
+      if (is.null(y) & length(self$measures) >= 2L) y = self$measure_ids[2]
+
+      p = ggplot2::ggplot(df, ggplot2::aes_string(x = x, y = y, color = color)) +
+      ggplot2::geom_point() +
+      ggplot2::theme_bw()
+      if (plotly) plotly::ggplotly(p)
+      else p
+    },
+    plot_results = function() {
+      df = as.data.frame(self$opt_result$opt.path)
+      df$iter = seq_len(nrow(df))
+      pdf =  reshape2::melt(df[, c("iter", self$measure_ids)],
+        variable.name = "measure",
+        value.names = "value", id.vars = "iter")
+      p = ggplot2::ggplot(pdf, ggplot2::aes(x = measure, y = value, color = measure)) +
+        ggplot2::geom_boxplot() +
+        ggplot2::theme_bw()
+      if (plotly) plotly::ggplotly(p)
+      else p
+    },
+    plot_opt_path = function() {
+        measure_ids = sapply(self$measures, function(x) x$id)
+        opt_df = as.data.frame(mlrMBO:::getOptStateOptPath(self$opt_state))
+        opt_df$iter = seq_len(nrow(opt_df))
+        pdf = do.call("rbind", lapply(measure_ids, function(x) data.frame("value" = opt_df[,x], "key" = x, "iter" = opt_df$iter)))
+        p = ggplot2::ggplot(pdf) +
+          ggplot2::geom_point(ggplot2::aes(x = iter, y = value, color = key)) +
+          ggplot2::geom_path(ggplot2::aes(x = iter, y = value, color = key)) +
+          ggplot2::theme_bw()
+        print(p)
+    }
   ),
   active = list(
     early_stopping_measure = function(value) {
@@ -404,7 +462,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     },
     measure_ids = function() {
       sapply(self$measures, function(x) x$id)
-    }, 
+    },
     measure_minimize = function() {
       sapply(self$measures, function(x) x$minimize)
     }

@@ -23,7 +23,8 @@ Imports:
     DiceKriging,
     xgboost (>= 0.6.4),
     smoof,
-    R6
+    R6,
+    log4r
 Suggests:
     testthat,
     rpart,
