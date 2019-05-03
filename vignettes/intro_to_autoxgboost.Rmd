@@ -17,24 +17,55 @@ knitr::opts_chunk$set(
 ```
 
 
-
-
-## Scenario 1: Optimizing Area under the Curve
-
 ```{r}
 library(devtools)
-load_all("~/Documents/mlr_repos/mlrMBO")
 load_all()
-axgb = AutoxgboostMC$new(pid.task, measures = list(auc))
-axgb$fit(time.budget = 12L)
-p = axgb$predict(pid.task)
+
+# Split into train and test data set.
+train.idx = sample(seq_len(768), 506)
+test.idx = setdiff(seq_len(768), train.idx)
+train.task = subsetTask(pid.task, train.idx)
+test.task = subsetTask(pid.task, test.idx)
 ```
 
 
+## Scenario 1: Optimizing a single mesure (Area under the Curve) for a given task.
+
+This scenario reflects the traditional use-case in AutoML scenarios.
+Given a dataset we want to obtain a model that optimizes a given performance measure.
+Additionally, we might want the process to stop at some point, so that the user
+can investigate results and make changes to the search process.
+
+We instantiate a new AutoxgboostMC object with a dataset (Task) and a list of measures.
+In this case we choose auc as a measure.
+Afterwards we call the `.$fit` method with a time-budget of $15$ seconds.
+This runs the AutoML process.
+
+```{r}
+axgb = AutoxgboostMC$new(pid.task, measures = list(auc))
+axgb$fit(time.budget = 15L)
+```
+
+If we are not satisfied, we can continue the search process for more iterations:
+
+```{r}
+axgb$fit(time.budget = 5L)
+```
+
+And then use the resulting model to predcit on our test data.
+
+```{r}
+axgb$predict(test.task)
+```
+
+
+
+
 ## Scenario 2: Optimizing Accuracy and Prediction Speed
+
 ```{r}
 axgb = AutoxgboostMC$new(pid.task, measures = list(auc, timepredict))
-axgb$fit(, time.budget = 5L)
+axgb$fit(, time.budget = 10L)
 p = axgb$predict(iris.task)
 
 axgb$optim.result$pareto.front

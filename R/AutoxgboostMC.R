@@ -103,6 +103,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     obj_fun = NULL,
     opt_state = NULL,
     opt_result = NULL,
+    opt_path_extras = list(),
     final_learner = NULL,
     final_model = NULL,
     logger = NULL,
@@ -130,7 +131,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       if (!is.null(self$opt_result)) {
         op = self$opt_result$opt.path
         pars = trafoValue(op$par.set, self$opt_result$x)
-        pars$nrounds = self$get_best_from_opt("nrounds")
+        pars$nrounds = self$get_best_from_opt(".nrounds")
         catf("Autoxgboost tuning result")
         catf("Recommended parameters:")
         for (p in names(pars)) {
@@ -157,30 +158,28 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         }
       }
     },
-    fit = function(iterations = 160L, time.budget = 3600L, fit_final_model = TRUE) {
+    fit = function(iterations = 160L, time.budget = 3600L, fit_final_model = TRUE, plot = TRUE) {
       assert_integerish(iterations)
       assert_integerish(time.budget)
       assert_flag(fit_final_model)
+      assert_flag(plot)
       self$watch = Stopwatch$new(time.budget, iterations)
 
-      log4r::info(self$logger, "Evaluating initial design")
+
       if (is.null(self$opt_state)) {
+        log4r::info(self$logger, "Evaluating initial design")
         self$opt_state = self$init_smbo()
-        self$watch$increment_iter()
       }
 
       log4r::info(self$logger, "Starting MBO")
-      while(!self$watch$stop()) {
-        self$fit_iteration()
-        self$watch$increment_iter()
-      }
+      while(!self$watch$stop()) self$fit_iteration(plot = plot)
 
       log4r::info(self$logger, "Finalizing MBO")
       self$opt_result = self$finalize_smbo()
       self$final_learner = self$build_final_learner()
       if(fit_final_model) self$fit_final_model()
     },
-    fit_iteration = function(plot = TRUE) {
+    fit_iteration = function(plot) {
       prop = proposePoints(self$opt_state)
       x = Map(f = function(par, pt) {
         if(!is.null(par$trafo)) par$trafo(pt)
@@ -188,6 +187,9 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       }, par = self$parset$pars, pt = dfRowsToList(df = prop$prop.points, par.set = self$parset)[[1]])
       y = self$obj_fun(x)
       updateSMBO(self$opt_state, x = prop$prop.points, y = y)
+      # Write out .nrounds etc. (currently missing in mlrMBO)
+      self$opt_state$opt.path$env$extra[[length(self$opt_state$opt.path$env$extra)]] = c(self$opt_state$opt.path$env$extra[[length(self$opt_state$opt.path$env$extra)]], attr(y, "extras"))
+      self$watch$increment_iter()
       if(plot) self$plot_opt_path()
     },
     fit_final_model = function() {
@@ -259,6 +261,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       return(list(task.train = task.train, task.test = task.test))
     },
 
+    # MBO --------------------------------------------------------------------------------
     make_objective_function = function(transf_tasks) {
       is_thresholded_measure = sapply(self$measures, function(x) {
         props = getMeasureProperties(x)
@@ -287,10 +290,12 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
             } else {
               res = tune.res$perf
             }
-            attr(res, "extras") = list(nrounds = nrounds, .threshold = tune.res$th)
+            # self$opt_path_extras[[self$watch$current_iter + 1]] = list(.nrounds = nrounds, .threshold = tune.res$th)
+            attr(res, "extras") = list(.nrounds = nrounds, .threshold = tune.res$th)
           } else {
             res = performance(pred, self$measures, model = mod, task = transf_tasks$task.test)
-            attr(res, "extras") = list(nrounds = nrounds)
+            # self$opt_path_extras[[self$watch$current_iter + 1]] = list(.nrounds = nrounds)
+            attr(res, "extras") = list(.nrounds = nrounds)
           }
           return(res)
         },
@@ -311,32 +316,34 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       }
       des = generateDesign(n = self$design.size, self$parset)
       # Doing one iteration here to evaluate design saves a lot of redundancy.
-      opt_result = mbo(fun = self$obj_fun, design = des, learner = self$mbo.learner, control = setMBOControlTermination(self$control, iters = 1L))
+      opt_result = mbo(fun = self$obj_fun, design = des, learner = self$mbo.learner,
+        control = setMBOControlTermination(self$control, iters = 1L))
+      self$watch$increment_iter(self$design.size + 1)
       return(opt_result$final.opt.state)
     },
     finalize_smbo = function() {
       opt_result = finalizeSMBO(self$opt_state)
-      if (self$is_multicrit) {
+      if(length(self$measures) > 1L) {
         # Fill best.ind, x and y using "best on early stopping measure".
         opt_result$best.ind = self$get_best_ind(opt_result)
         pars = names(opt_result$opt.path$par.set$pars)
-        opt_result$x = as.list(opt_result$opt.path$env$path[opt_result$best.ind, pars])
-        opt_result$y = as.list(opt_result$opt.path$env$path[opt_result$best.ind, self$measure_ids])
+        opt_result$x = as.list(opt_result$opt.path$env$path[self$get_best_ind(opt_result), pars])
+        opt_result$y = as.list(opt_result$opt.path$env$path[self$get_best_ind(opt_result), self$measure_ids])
       }
       return(opt_result)
     },
     build_final_learner = function() {
-      nrounds = self$get_best_from_opt("nrounds")
+      nrounds = self$get_best_from_opt(".nrounds")
       pars = trafoValue(self$parset, self$opt_result$x)
       pars = pars[!vlapply(pars, is.na)]
 
-      lrn = if (!is.null(self$baselearner$predict.type)) {
-        makeLearner("classif.xgboost.custom", nrounds = nrounds,
+      if (!is.null(self$baselearner$predict.type)) {
+        lrn = makeLearner("classif.xgboost.custom", nrounds = nrounds,
           objective = self$baselearner$par.vals$objective,
           predict.type = self$baselearner$predict.type,
           predict.threshold = self$get_best_from_opt(".threshold"))
       } else {
-        makeLearner("regr.xgboost.custom", nrounds = nrounds, objective = objective)
+        lrn = makeLearner("regr.xgboost.custom", nrounds = nrounds, objective = objective)
       }
       lrn = setHyperPars2(lrn, par.vals = pars)
       lrn = self$preproc_pipeline %>>% lrn
@@ -345,7 +352,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       return(lrn)
     },
 
-    # Setters for various hyperparameters
+    ## Setters for various hyperparameters -----------------------------------------------
     set_measure_bounds = function(measure, best_valid = NULL, worst_valid = NULL) {
       if(is.null(best_valid)  & is.null(measure$best_valid))  measure$best_valid = measure$best
       else measure$best_valid = best_valid
@@ -384,30 +391,28 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     set_resample_instance = function(value) {
       self$resample_instance = assert_class(value, "ResampleInstance", null.ok = TRUE)
     },
-    get_best_ind = function(opt_result) {
-      # We can either select a best index from the outside
-      if (!is.null(self$selected.ind)) best.ind = selected.ind
-      # Or auto-choose one according to the early stopping measure
-      if (is.null(opt_result$best.ind)) {
-        if (self$early_stopping_measure$minimize) {
-          best.ind = which.min(opt_result$opt.path$env$path[[self$early_stopping_measure$id]])
-        } else {
-          best.ind = which.max(opt_result$opt.path$env$path[[self$early_stopping_measure$id]])
-        }
-      } else {
-        best.ind = opt_result$best.ind
-      }
-      return(best.ind)
-    },
-    #Get best value from optimization result
-    # @param what [`character(1)`]: "nrounds" or ".threshold"
+
+    ## Getters
+    # Get best value from optimization result
+    # @param what [`character(1)`]: ".nrounds" or ".threshold"
     get_best_from_opt = function(what) {
-      self$opt_result$opt.path$env$extra[[self$opt_result$best.ind]][[what]]
+      self$opt_result$opt.path$env$extra[[self$get_best_ind(self$opt_result)]][[what]]
     },
     # Get the iteration parameter of a fitted xboost model with early stopping
     get_best_iteration = function(mod) {
       getLearnerModel(mod, more.unwrap = TRUE)$best_iteration
     },
+    get_best_ind = function(opt_result) {
+      if (self$early_stopping_measure$minimize) {
+        best.ind = which.min(opt_result$opt.path$env$path[[self$early_stopping_measure$id]])
+      } else {
+        best.ind = which.max(opt_result$opt.path$env$path[[self$early_stopping_measure$id]])
+      }
+      return(best.ind)
+    },
+
+
+    ## Plot functions -------------------------------------------------------------------
     plot_pareto_front = function(x = NULL, y = NULL, color = NULL, plotly = TRUE) {
       df = as.data.frame(self$opt_result$opt.path)
       assert_choice(x, colnames(df), null.ok = TRUE)
@@ -435,17 +440,20 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       else p
     },
     plot_opt_path = function() {
-        measure_ids = sapply(self$measures, function(x) x$id)
-        opt_df = as.data.frame(mlrMBO:::getOptStateOptPath(self$opt_state))
-        opt_df$iter = seq_len(nrow(opt_df))
-        pdf = do.call("rbind", lapply(measure_ids, function(x) data.frame("value" = opt_df[,x], "key" = x, "iter" = opt_df$iter)))
-        p = ggplot2::ggplot(pdf) +
-          ggplot2::geom_point(ggplot2::aes(x = iter, y = value, color = key)) +
-          ggplot2::geom_path(ggplot2::aes(x = iter, y = value, color = key)) +
-          ggplot2::theme_bw()
-        print(p)
+      opt_df = as.data.frame(mlrMBO:::getOptStateOptPath(self$opt_state))
+      opt_df$iter = seq_len(nrow(opt_df))
+      pdf = do.call("rbind", lapply(self$measure_ids, function(x) data.frame("value" = opt_df[,x], "key" = x, "iter" = opt_df$iter)))
+
+      p = ggplot2::ggplot(pdf) +
+        ggplot2::geom_point(ggplot2::aes(x = iter, y = value, color = key)) +
+        ggplot2::geom_path(ggplot2::aes(x = iter, y = value, color = key)) +
+        ggplot2::theme_bw() +
+        ggplot2::facet_grid(key ~ ., scales = "free_y") +
+        ggplot2::guides(color = FALSE)
+      print(p)
     }
   ),
+
   active = list(
     early_stopping_measure = function(value) {
       if (missing(value)) {
