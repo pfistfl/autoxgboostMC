@@ -410,11 +410,14 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       }
       return(best.ind)
     },
+    get_opt_path_df = function() {
+      as.data.frame(mlrMBO:::getOptStateOptPath(self$opt_state))
+    },
 
 
     ## Plot functions -------------------------------------------------------------------
-    plot_pareto_front = function(x = NULL, y = NULL, color = NULL, plotly = TRUE) {
-      df = as.data.frame(self$opt_result$opt.path)
+    plot_pareto_front = function(x = NULL, y = NULL, color = NULL, plotly = FALSE) {
+      df = self$get_opt_path_df()
       assert_choice(x, colnames(df), null.ok = TRUE)
       assert_choice(y, colnames(df), null.ok = TRUE)
       assert_choice(color, colnames(df), null.ok = TRUE)
@@ -427,8 +430,8 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       if (plotly) plotly::ggplotly(p)
       else p
     },
-    plot_results = function() {
-      df = as.data.frame(self$opt_result$opt.path)
+    plot_results = function(plotly = FALSE) {
+      df = self$get_opt_path_df()
       df$iter = seq_len(nrow(df))
       pdf =  reshape2::melt(df[, c("iter", self$measure_ids)],
         variable.name = "measure",
@@ -440,10 +443,9 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       else p
     },
     plot_opt_path = function() {
-      opt_df = as.data.frame(mlrMBO:::getOptStateOptPath(self$opt_state))
+      opt_df = self$get_opt_path_df()
       opt_df$iter = seq_len(nrow(opt_df))
       pdf = do.call("rbind", lapply(self$measure_ids, function(x) data.frame("value" = opt_df[,x], "key" = x, "iter" = opt_df$iter)))
-
       p = ggplot2::ggplot(pdf) +
         ggplot2::geom_point(ggplot2::aes(x = iter, y = value, color = key)) +
         ggplot2::geom_path(ggplot2::aes(x = iter, y = value, color = key)) +
@@ -451,6 +453,48 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         ggplot2::facet_grid(key ~ ., scales = "free_y") +
         ggplot2::guides(color = FALSE)
       print(p)
+    },
+    plot_parallel_coordinates = function(trim = 10L) {
+      requirePackages("tidyr")
+      opt_df = self$get_opt_path_df()
+      opt_df = opt_df[opt_df[, self$early_stopping_measure$id] >= sort(opt_df[, self$early_stopping_measure$id], decreasing = TRUE)[trim],]
+      # Drop 2nd lambda (MBO param)
+      opt_df = opt_df[, -rev(which(colnames(opt_df) == "lambda"))[1]]
+      pars = c(names(self$parset$pars), self$measure_ids)
+      opt_df = opt_df[, pars]
+      par_range = sapply(opt_df[, pars], range)
+      normed_pars = t((t(opt_df[, pars]) - par_range[1,]) / (par_range[2,] - par_range[1,]))
+      colnames(opt_df) = paste0("_", pars)
+      opt_df = cbind(opt_df, normed_pars)
+      opt_df$iter = seq_len(nrow(opt_df))
+      pdf_norm = tidyr::gather_(opt_df, key = "normed_x", value = "y", colnames(normed_pars))
+      pdf_text = tidyr::gather_(opt_df, key = "text", value = "textval", paste0("_", pars))
+      text = unlist(sapply(split(pdf_text, pdf_text$iter), function(x) {
+        iter = paste0("Iteration:", unique(pdf_text$iter))
+         # Measures:
+         meas = x[x$text %in% paste0("_", self$measure_ids),]
+         meas = paste0(gsub("_", "", meas$text), ":", round(meas$textval, 3))
+         meas = paste0("<br>Measures:<br>", paste0(unique(meas), collapse = "<br>"))
+         # Parameters
+         pars = x[!(x$text %in% paste0("_", self$measure_ids)), ]
+         pars = paste0(gsub("_", "", pars$text), ":", round(pars$textval, 3))
+         pars = paste0("<br>Parameters:<br>", paste0(unique(pars), collapse = "<br>"))
+         paste0(meas, pars)
+      }))
+      pdf_norm$tooltip = text[pdf_norm$iter]
+      p = ggplot2::ggplot(pdf_norm, ggplot2::aes(x = normed_x, y = y, group = iter,
+        text = tooltip)) +
+        ggplot2::geom_path(ggplot2::aes(color = iter), alpha = 0.3) +
+        ggplot2::geom_point(size = 4L, alpha = 0.5, color = "grey") +
+        ggplot2::theme_bw() +
+        ggplot2::guides(color = FALSE) +
+        ggplot2::theme(
+          axis.text.y = ggplot2::element_blank(),
+          axis.ticks.y = ggplot2::element_blank()
+        ) +
+        ggplot2::ylab("") + ggplot2::xlab("")
+      gg = plotly::ggplotly(p, tooltip = "text")
+      plotly::highlight(gg, dynamic = TRUE)
     }
   ),
 

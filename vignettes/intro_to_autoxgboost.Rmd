@@ -42,7 +42,7 @@ Afterwards we call the `.$fit` method with a time-budget of $15$ seconds.
 This runs the AutoML process.
 
 ```{r}
-axgb = AutoxgboostMC$new(pid.task, measures = list(auc))
+axgb = AutoxgboostMC$new(train.task, measures = list(auc))
 axgb$fit(time.budget = 15L)
 ```
 
@@ -59,30 +59,37 @@ axgb$predict(test.task)
 ```
 
 
-
+```{r}
+axgb$plot_parallel_coordinates()
+```
 
 ## Scenario 2: Optimizing Accuracy and Prediction Speed
 
 ```{r}
-axgb = AutoxgboostMC$new(pid.task, measures = list(auc, timepredict))
-axgb$fit(, time.budget = 10L)
-p = axgb$predict(iris.task)
-
-axgb$optim.result$pareto.front
-axgb$optim.result$pareto.set
-axgb$optim.result$pareto.inds
+axgb = AutoxgboostMC$new(train.task, measures = list(auc, timepredict))
+axgb$fit(time.budget = 10L)
 ```
+
+And visualize: 
+
+```{r}
+axgb$plot_pareto_front()
+axgb$plot_results()
+```
+
 ## Scenario 3: Predictive Accuracy and Fairness
 
 ```{r}
-axgb = AutoxgboostMC$new(measures = list(acc, fairf1))
-axgb$fit(pid.task, time.budget = 5L)
-p = axgb$predict(iris.task)
-
-axgb$optim.result$pareto.front
-axgb$optim.result$pareto.set
-axgb$optim.result$pareto.inds
+age_fairf1 = setMeasurePars(fairf1, grouping = function(df) as.factor(df$age > 30))
+axgb = AutoxgboostMC$new(train.task, measures = list(acc, age_fairf1))
+axgb$set_tune_threshold(FALSE)
+axgb$fit(time.budget = 20L)
+p = axgb$predict(test.task)
 ```
+
+
+
+
 
 ## Scenario 4: Interpretability and Predictive Accuracy
 

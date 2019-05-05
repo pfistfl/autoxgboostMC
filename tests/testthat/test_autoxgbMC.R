@@ -45,6 +45,7 @@ test_that("Multiple measures work",  {
 test_that("New measures work",  {
     fairf11 = setMeasurePars(fairf1, grouping = function(df) as.factor(df$age > 30))
     axgb = AutoxgboostMC$new(measures = list(acc, fairf11, timepredict))
+    axgb$set_threshold_tuning(FALSE)
     axgb$fit(pid.task, time.budget = 10L)
     expect_true(!is.null(axgb$model))
     p = axgb$predict(pid.task)
