@@ -9,12 +9,11 @@
 AutoxgboostMC
 }
 \arguments{
+\item{task}{[\code{\link[mlr]{Task}}]\cr
+The task to be trained.}
+
 \item{measures}{[list of \code{\link[mlr]{Measure}}]\cr
 Performance measure. If \code{NULL} \code{\link[mlr]{getDefaultMeasure}} is used.}
-
-\item{early_stopping_measure}{[\code{\link[mlr]{Measure}}]\cr
-Performance measure used for early stopping. Picks the first measure
-defined in measures by default.}
 
 \item{parset}{[\code{\link[ParamHelpers]{ParamSet}}]\cr
 Parameter set to tune over. Default is \code{\link{autoxgbparset}}.
@@ -27,27 +26,27 @@ Can be updated using `.$set_parset()`.}
 
 Arguments to `.$fit()`:}
 
-\item{task}{[\code{\link[mlr]{Task}}]\cr
-The task to be trained.}
-
 \item{iterations}{[\code{integer(1L}]\cr
-Number of MBO iterations to do. Will be ignored if custom \code{control} is used.
+Number of MBO iterations to do. Will be ignored if a custom \code{MBOControl} is used.
 Default is \code{160}.}
 
-\item{time.budget}{[\code{integer(1L}]\cr
+\item{time_budget}{[\code{integer(1L}]\cr
 Time that can be used for tuning (in seconds). Will be ignored if a custom \code{control} is used.
 Default is \code{3600}, i.e., one hour.}
 
-\item{build.final.model}{[\code{logical(1)}]\cr
+\item{fit_final_model}{[\code{logical(1)}]\cr
 Should the model with the best found configuration be refitted on the complete dataset?
 Default is \code{FALSE}.}
 
-\item{control}{[\code{\link[mlrMBO]{MBOControl}}]\cr
-  Control object for optimizer.
-  If not specified, the default \code{\link[mlrMBO]{makeMBOControl}}] object will be used with
-  \code{iterations} maximum iterations and a maximum runtime of \code{time.budget} seconds.
+\item{plot}{[\code{logical(1)}]\cr
+  Should the progress be plotted? Default is \code{TRUE}.
 
 Additional arguments that control the process:}
+
+\item{control}{[\code{\link[mlrMBO]{MBOControl}}]\cr
+Control object for optimizer.
+If not specified, the default \code{\link[mlrMBO]{makeMBOControl}}] object will be used with
+\code{iterations} maximum iterations and a maximum runtime of \code{time_budget} seconds.}
 
 \item{mbo.learner}{[\code{\link[mlr]{Learner}}]\cr
 Regression learner from mlr, which is used as a surrogate to model our fitness function.
@@ -59,8 +58,12 @@ Can be set using `.$set_mbo_learner()`.}
 Size of the initial design. Default is \code{15L}.
 Can be set via `.$set_design_size()`}
 
+\item{early_stopping_measure}{[\code{\link[mlr]{Measure}}]\cr
+Performance measure used for early stopping. Picks the first measure
+defined in measures by default.}
+
 \item{max.nrounds}{[\code{integer(1)}]\cr
-Maximum number of allowed boosting iterations. Default is \code{10^6}.
+Maximum number of allowed boosting iterations. Default is \code{3000}.
 Can be set via `.$set_max_nrounds()`.}
 
 \item{early.stopping.rounds}{[\code{integer(1L}]\cr
@@ -97,8 +100,8 @@ Arguments to `.$new()`:
 \examples{
 \donttest{
 iris.task = makeClassifTask(data = iris, target = "Species")
-axgb = AutoxgboostMC$new(measure = auc)
-axgb$fit(t, time.budget = 5L)
+axgb = AutoxgboostMC$new(iris.task, measure = auc)
+axgb$fit(time_budget = 5L)
 p = axgb$predict(iris.task)
 }
 }

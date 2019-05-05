@@ -9,11 +9,10 @@
 #' Both the parameter set and the control object can be set by the user.
 #'
 #' Arguments to `.$new()`:
+#' @param task [\code{\link[mlr]{Task}}]\cr
+#'   The task to be trained.
 #' @param measures [list of \code{\link[mlr]{Measure}}]\cr
 #'   Performance measure. If \code{NULL} \code{\link[mlr]{getDefaultMeasure}} is used.
-#' @param early_stopping_measure [\code{\link[mlr]{Measure}}]\cr
-#'   Performance measure used for early stopping. Picks the first measure
-#'   defined in measures by default.
 #' @param parset [\code{\link[ParamHelpers]{ParamSet}}]\cr
 #'   Parameter set to tune over. Default is \code{\link{autoxgbparset}}.
 #'   Can be updated using `.$set_parset()`.
@@ -23,23 +22,23 @@
 #'   Can be set using `.$set_nthread()`.
 #'
 #' Arguments to `.$fit()`:
-#' @param task [\code{\link[mlr]{Task}}]\cr
-#'   The task to be trained.
-#' @param control [\code{\link[mlrMBO]{MBOControl}}]\cr
-#'   Control object for optimizer.
-#'   If not specified, the default \code{\link[mlrMBO]{makeMBOControl}}] object will be used with
-#'   \code{iterations} maximum iterations and a maximum runtime of \code{time.budget} seconds.
 #' @param iterations [\code{integer(1L}]\cr
 #'   Number of MBO iterations to do. Will be ignored if a custom \code{MBOControl} is used.
 #'   Default is \code{160}.
-#' @param time.budget [\code{integer(1L}]\cr
+#' @param time_budget [\code{integer(1L}]\cr
 #'   Time that can be used for tuning (in seconds). Will be ignored if a custom \code{control} is used.
 #'   Default is \code{3600}, i.e., one hour.
 #' @param fit_final_model [\code{logical(1)}]\cr
 #'   Should the model with the best found configuration be refitted on the complete dataset?
 #'   Default is \code{FALSE}.
+#' @param plot [\code{logical(1)}]\cr
+#'   Should the progress be plotted? Default is \code{TRUE}.
 #'
 #' Additional arguments that control the process:
+#' @param control [\code{\link[mlrMBO]{MBOControl}}]\cr
+#'   Control object for optimizer.
+#'   If not specified, the default \code{\link[mlrMBO]{makeMBOControl}}] object will be used with
+#'   \code{iterations} maximum iterations and a maximum runtime of \code{time_budget} seconds.
 #' @param mbo.learner [\code{\link[mlr]{Learner}}]\cr
 #'   Regression learner from mlr, which is used as a surrogate to model our fitness function.
 #'   If \code{NULL} (default), the default learner is determined as described here:
@@ -48,6 +47,9 @@
 #' @param design.size [\code{integer(1)}]\cr
 #'   Size of the initial design. Default is \code{15L}.
 #'   Can be set via `.$set_design_size()`
+#' @param early_stopping_measure [\code{\link[mlr]{Measure}}]\cr
+#'   Performance measure used for early stopping. Picks the first measure
+#'   defined in measures by default.
 #' @param max.nrounds [\code{integer(1)}]\cr
 #'   Maximum number of allowed boosting iterations. Default is \code{3000}.
 #'   Can be set via `.$set_max_nrounds()`.
@@ -73,8 +75,8 @@
 #' @examples
 #' \donttest{
 #' iris.task = makeClassifTask(data = iris, target = "Species")
-#' axgb = AutoxgboostMC$new(measure = auc)
-#' axgb$fit(t, time.budget = 5L)
+#' axgb = AutoxgboostMC$new(iris.task, measure = auc)
+#' axgb$fit(time_budget = 5L)
 #' p = axgb$predict(iris.task)
 #' }
 AutoxgboostMC = R6::R6Class("AutoxgboostMC",
@@ -86,7 +88,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     design.size = 15L,
     mbo.learner = NULL,
     iterations = NULL,
-    time.budget = NULL,
+    time_budget = NULL,
     task = NULL,
 
     max.nrounds = 3*10^3L,
@@ -158,12 +160,12 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         }
       }
     },
-    fit = function(iterations = 160L, time.budget = 3600L, fit_final_model = TRUE, plot = TRUE) {
+    fit = function(iterations = 160L, time_budget = 3600L, fit_final_model = TRUE, plot = TRUE) {
       assert_integerish(iterations)
-      assert_integerish(time.budget)
+      assert_integerish(time_budget)
       assert_flag(fit_final_model)
       assert_flag(plot)
-      self$watch = Stopwatch$new(time.budget, iterations)
+      self$watch = Stopwatch$new(time_budget, iterations)
 
 
       if (is.null(self$opt_state)) {
@@ -361,6 +363,13 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       if(is.null(measure$weight)) measure$weight = 1L
       return(measure)
     },
+    # FIXME: This is not optimal. 
+    # Suggestion: pars are active bindings and have an _par counterpart that 
+    # stores the value. Add paramset?
+    set_hyperpars = function(par_vals) {
+      assert_list(par_vals, names = "unique")
+      lapply(names(par_vals), function(x) self[[paste0("set_", x)]](par_vals[[x]]))
+    },
     set_max_nrounds = function(value) {
        self$max.nrounds = assert_integerish(value, lower = 1L, len = 1L)
     },
@@ -445,12 +454,12 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     plot_opt_path = function() {
       opt_df = self$get_opt_path_df()
       opt_df$iter = seq_len(nrow(opt_df))
-      pdf = do.call("rbind", lapply(self$measure_ids, function(x) data.frame("value" = opt_df[,x], "key" = x, "iter" = opt_df$iter)))
+      pdf = do.call("rbind", lapply(self$measure_ids, function(x) data.frame("value" = opt_df[,x], "measure" = x, "iter" = opt_df$iter)))
       p = ggplot2::ggplot(pdf) +
-        ggplot2::geom_point(ggplot2::aes(x = iter, y = value, color = key)) +
-        ggplot2::geom_path(ggplot2::aes(x = iter, y = value, color = key)) +
+        ggplot2::geom_point(ggplot2::aes(x = iter, y = value, color = measure)) +
+        ggplot2::geom_path(ggplot2::aes(x = iter, y = value, color = measure)) +
         ggplot2::theme_bw() +
-        ggplot2::facet_grid(key ~ ., scales = "free_y") +
+        ggplot2::facet_grid(measure ~ ., scales = "free_y") +
         ggplot2::guides(color = FALSE)
       print(p)
     },
@@ -484,7 +493,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       pdf_norm$tooltip = text[pdf_norm$iter]
       p = ggplot2::ggplot(pdf_norm, ggplot2::aes(x = normed_x, y = y, group = iter,
         text = tooltip)) +
-        ggplot2::geom_path(ggplot2::aes(color = iter), alpha = 0.3) +
+        ggplot2::geom_path(ggplot2::aes(color = iter), alpha = 0.25) +
         ggplot2::geom_point(size = 4L, alpha = 0.5, color = "grey") +
         ggplot2::theme_bw() +
         ggplot2::guides(color = FALSE) +
