@@ -244,7 +244,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       has.cat.feats = sum(getTaskDesc(self$task)$n.feat[c("factors", "ordered")]) > 0
       self$preproc_pipeline = NULLCPO
       if (has.cat.feats) {
-        self$preproc_pipeline %<>>% generateCatFeatPipeline(task, self$impact.encoding.boundary)
+        self$preproc_pipeline %<>>% generateCatFeatPipeline(self$task, self$impact.encoding.boundary)
       }
       self$preproc_pipeline %<>>% cpoDropConstants()
 
