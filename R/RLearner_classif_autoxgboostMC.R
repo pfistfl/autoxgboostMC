@@ -1,8 +1,8 @@
 #' @export
-makeRLearner.classif.autoxgboost = function() {
+makeRLearner.classif.autoxgboostMC = function() {
   makeRLearnerClassif(
-    cl = "classif.autoxgboost",
-    package = "autoxgboost",
+    cl = "classif.autoxgboostMC",
+    package = "autoxgboostMC",
     par.set = makeParamSet(
       makeUntypedLearnerParam(id = "measure", default = mse),
       makeUntypedLearnerParam(id = "control"),
@@ -19,33 +19,25 @@ makeRLearner.classif.autoxgboost = function() {
       makeLogicalLearnerParam(id = "tune.threshold", default = TRUE)
     ),
     properties = c("twoclass", "multiclass", "numerics", "factors", "prob", "missings"),
-    name = "Automatic eXtreme Gradient Boosting",
-    short.name = "autoxgboost",
+    name = "Automatic  multi-criteria eXtreme Gradient Boosting",
+    short.name = "autoxgboostMC",
     note = ""
     )
 }
 
 #' @export
-trainLearner.classif.autoxgboost = function(.learner, .task, .subset, .weights = NULL,
-  measure = mmce, control = NULL, iterations = 160, time.budget = 3600, par.set = autoxgbparset, max.nrounds = 10^6, early.stopping.rounds = 10L,
+trainLearner.classif.autoxgboostMC = function(.learner, .task, .subset, .weights = NULL,
+  measures = list(mmce), control = NULL, iterations = 160, time.budget = 30, par.set = autoxgbparset, max.nrounds = 10^6, early.stopping.rounds = 10L,
   early.stopping.fraction = 4/5, build.final.model = TRUE, design.size = 15L,
   impact.encoding.boundary = 10L, mbo.learner = NULL, nthread = NULL, tune.threshold = TRUE, ...) {
 
   .task = subsetTask(.task, .subset)
-  autoxgboost(.task, measure, control, iterations, time.budget, par.set, max.nrounds, early.stopping.rounds,
-    early.stopping.fraction, build.final.model, design.size,
-    impact.encoding.boundary, mbo.learner, nthread, tune.threshold)
-
+  axgb = AutoxgboostMC$new(.task, measures = measures)
+  axgb$fit(time.budget = time.budget, iterations = iteratinos)
+  return(axgb)
 }
 
 #' @export
-predictLearner.classif.autoxgboost = function(.learner, .model, .newdata, ...) {
-
-  model = .model$learner.model$final.model
-
-  learner = model$learner
-  learner = setPredictType(learner, .learner$predict.type)
-
-  predictLearner(learner, model, .newdata, ...)
-
+predictLearner.classif.autoxgboostMC = function(.learner, .model, .newdata, ...) {
+  .model$learner.model$predict(.newdata)
 }

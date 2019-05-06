@@ -25,27 +25,19 @@ test_that("autoxgboostMC works on different tasks",  {
     iris.task)  # multiclass classification
 
   for (t in tasks) {
-    axgb = AutoxgboostMC$new(measures = list(acc, timepredict))
-    axgb$fit(t, time.budget = 10L)
-    expect_true(!is.null(axgb$model))
+    axgb = AutoxgboostMC$new(t, measures = list(acc, timepredict))
+    axgb$fit(time.budget = 4L)
+    expect_class(axgb$opt_result, "MBOMultiObjResult")
     p = axgb$predict(t)
     expect_class(p, "Prediction")
   }
 })
 
-test_that("Multiple measures work",  {
-    fairf11 = setMeasurePars(fairf1, grouping = function(df) as.factor(df$age > 30))
-    axgb = AutoxgboostMC$new(measures = list(acc, fairf11))
-    axgb$fit(pid.task, time.budget = 10L)
-    expect_true(!is.null(axgb$model))
-    p = axgb$predict(pid.task)
-    expect_class(p, "Prediction")
-})
-
 test_that("New measures work",  {
     fairf11 = setMeasurePars(fairf1, grouping = function(df) as.factor(df$age > 30))
-    axgb = AutoxgboostMC$new(measures = list(acc, fairf11, timepredict))
-    axgb$fit(pid.task, time.budget = 10L)
+    axgb = AutoxgboostMC$new(pid.task, measures = list(acc, fairf11, timepredict))
+    axgb$set_threshold_tuning(FALSE)
+    axgb$fit(time.budget = 10L)
     expect_true(!is.null(axgb$model))
     p = axgb$predict(pid.task)
     expect_class(p, "Prediction")
