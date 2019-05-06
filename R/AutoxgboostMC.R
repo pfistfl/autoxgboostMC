@@ -30,86 +30,72 @@
 #'   Default is \code{3600}, i.e., one hour.
 #' @param fit_final_model [\code{logical(1)}]\cr
 #'   Should the model with the best found configuration be refitted on the complete dataset?
-#'   Default is \code{FALSE}.
+#'   Default is \code{FALSE}. The model can also be fitted after optimization using `.$fit_final_model()`.
 #' @param plot [\code{logical(1)}]\cr
 #'   Should the progress be plotted? Default is \code{TRUE}.
 #'
-#' Additional arguments that control the process:
+#' Additional arguments that control the Bayesian Optimization process:
+#' Can be set / obtained via respective Active Bindings:
 #' @param control [\code{\link[mlrMBO]{MBOControl}}]\cr
 #'   Control object for optimizer.
 #'   If not specified, the default \code{\link[mlrMBO]{makeMBOControl}}] object will be used with
 #'   \code{iterations} maximum iterations and a maximum runtime of \code{time_budget} seconds.
-#' @param mbo.learner [\code{\link[mlr]{Learner}}]\cr
+#' @param mbo_learner [\code{\link[mlr]{Learner}}]\cr
 #'   Regression learner from mlr, which is used as a surrogate to model our fitness function.
 #'   If \code{NULL} (default), the default learner is determined as described here:
 #'   \link[mlrMBO]{mbo_default_learner}.
-#'   Can be set using `.$set_mbo_learner()`.
-#' @param design.size [\code{integer(1)}]\cr
+#' @param design_size [\code{integer(1)}]\cr
 #'   Size of the initial design. Default is \code{15L}.
-#'   Can be set via `.$set_design_size()`
+#'
+#' Additional arguments that control the Pipeline:
 #' @param early_stopping_measure [\code{\link[mlr]{Measure}}]\cr
 #'   Performance measure used for early stopping. Picks the first measure
 #'   defined in measures by default.
-#' @param max.nrounds [\code{integer(1)}]\cr
-#'   Maximum number of allowed boosting iterations. Default is \code{3000}.
-#'   Can be set via `.$set_max_nrounds()`.
-#' @param early.stopping.rounds [\code{integer(1L}]\cr
+#' @param early_stopping_rounds [\code{integer(1L}]\cr
 #'   After how many iterations without an improvement in the boosting OOB error should be stopped?
 #'   Default is \code{10}.
-#'   Can be set via `.$set_early_stopping_rounds()`.
-#' @param early.stopping.fraction [\code{numeric(1)}]\cr
+#' @param early_stopping_fraction [\code{numeric(1)}]\cr
 #'   What fraction of the data should be used for early stopping (i.e. as a validation set).
 #'   Default is \code{4/5}.
-#'   Can be set via `.$set_early_stopping_fraction()`.
-#' @param impact.encoding.boundary [\code{integer(1)}]\cr
-#'   Defines the threshold on how factor variables are handled. Factors with more levels than the \code{"impact.encoding.boundary"} get impact encoded while factor variables with less or equal levels than the \code{"impact.encoding.boundary"} get dummy encoded.
-#'   For \code{impact.encoding.boundary = 0L}, all factor variables get impact encoded while for \code{impact.encoding.boundary = .Machine$integer.max}, all of them get dummy encoded.
+#' @param impact_encoding_boundary [\code{integer(1)}]\cr
+#'   Defines the threshold on how factor variables are handled. Factors with more levels than the \code{"impact_encoding_boundary"} get impact encoded while factor variables with less or equal levels than the \code{"impact_encoding_boundary"} get dummy encoded.
+#'   For \code{impact_encoding_boundary = 0L}, all factor variables get impact encoded while for \code{impact_encoding_boundary = .Machine$integer.max}, all of them get dummy encoded.
 #'   Default is \code{10}.
-#'   Can be set via `.$set_impact_encoding_boundary()`.
-#' @param tune.threshold [logical(1)]\cr
+#' @param tune_threshold [logical(1)]\cr
 #'   Should thresholds be tuned? This has only an effect for classification, see \code{\link[mlr]{tuneThreshold}}.
 #'   Default is \code{TRUE}.
-#'   Can be set via `.$set_tune_threshold()`.
+#' @param max_nrounds [\code{integer(1)}]\cr
+#'   Maximum number of allowed boosting iterations. Default is \code{3000}.
 #'
 #' @export
 #' @examples
 #' \donttest{
+#' # Create a mlr Task
 #' iris.task = makeClassifTask(data = iris, target = "Species")
+#' # Instantiate the AutoxgboostMC Object
 #' axgb = AutoxgboostMC$new(iris.task, measure = auc)
+#' # Fit and Predict
 #' axgb$fit(time_budget = 5L)
 #' p = axgb$predict(iris.task)
+#'
+#' # Set hyperparameters:
+#' axgb$tune_threshold = FALSE
 #' }
 AutoxgboostMC = R6::R6Class("AutoxgboostMC",
   public = list(
+    task = NULL,
     measures = NULL,
 
-    control = NULL,
-    parset = NULL,
-    design.size = 15L,
-    mbo.learner = NULL,
     iterations = NULL,
     time_budget = NULL,
-    task = NULL,
 
-    max.nrounds = 3*10^3L,
-    early.stopping.rounds = 20L,
-    early.stopping.fraction = 4/5,
-    impact.encoding.boundary = 10L,
-    tune.threshold = TRUE,
-    nthread = NULL,
-    resample_instance = NULL,
-
-    baselearner = NULL,
     preproc_pipeline = NULL,
-    model = NULL,
     obj_fun = NULL,
     opt_state = NULL,
     opt_result = NULL,
-    opt_path_extras = list(),
+
     final_learner = NULL,
     final_model = NULL,
-    logger = NULL,
-    watch = NULL,
 
     initialize = function(task, measures = NULL, parset = NULL, nthread = NULL) {
       self$task = assert_class(task, "SupervisedTask")
@@ -117,14 +103,15 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       assert_class(parset, "ParamSet", null.ok = TRUE)
       # Set defaults
       measures = coalesce(measures, list(getDefaultMeasure(task)))
+      # names(measures) = self$measure_ids
       self$measures = lapply(measures, self$set_measure_bounds)
-      self$parset = coalesce(parset, autoxgboostMC::autoxgbparset)
-      self$nthread = assert_integerish(nthread, lower = 1, len = 1L, null.ok = TRUE)
-      self$logger = log4r::logger()
+      private$.parset = coalesce(parset, autoxgboostMC::autoxgbparset)
+      private$.nthread = assert_integerish(nthread, lower = 1, len = 1L, null.ok = TRUE)
+      private$.logger = log4r::logger()
 
-      self$baselearner = self$make_baselearner()
+      private$baselearner = self$make_baselearner()
       transf_tasks = self$build_transform_pipeline()
-      self$baselearner = setHyperPars(self$baselearner, early.stopping.data = transf_tasks$task.test)
+      private$baselearner = setHyperPars(private$baselearner, early.stopping.data = transf_tasks$task.test)
       self$obj_fun = self$make_objective_function(transf_tasks)
     },
     print = function(...) {
@@ -133,7 +120,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       if (!is.null(self$opt_result)) {
         op = self$opt_result$opt.path
         pars = trafoValue(op$par.set, self$opt_result$x)
-        pars$nrounds = self$get_best_from_opt(".nrounds")
+        pars$nrounds = self$get_best_from_opt("nrounds")
         catf("Autoxgboost tuning result")
         catf("Recommended parameters:")
         for (p in names(pars)) {
@@ -165,21 +152,26 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       assert_integerish(time_budget)
       assert_flag(fit_final_model)
       assert_flag(plot)
-      self$watch = Stopwatch$new(time_budget, iterations)
 
+      # Start the Stopwatch
+      private$.watch = Stopwatch$new(time_budget, iterations)
+      self$fit_smbo(iterations, time_budget, fit_final_model, plot)
 
+      # Create final model
+      self$final_learner = self$build_final_learner()
+      if(fit_final_model) self$fit_final_model()
+    },
+    fit_smbo = function(iterations, time_budget, fit_final_model, plot) {
       if (is.null(self$opt_state)) {
-        log4r::info(self$logger, "Evaluating initial design")
+        log4r::info(private$.logger, "Evaluating initial design")
         self$opt_state = self$init_smbo()
       }
 
-      log4r::info(self$logger, "Starting MBO")
-      while(!self$watch$stop()) self$fit_iteration(plot = plot)
+      log4r::info(private$.logger, "Starting MBO")
+      while(!private$.watch$stop()) self$fit_iteration(plot = plot)
 
-      log4r::info(self$logger, "Finalizing MBO")
+      log4r::info(private$.logger, "Finalizing MBO")
       self$opt_result = self$finalize_smbo()
-      self$final_learner = self$build_final_learner()
-      if(fit_final_model) self$fit_final_model()
     },
     fit_iteration = function(plot) {
       prop = proposePoints(self$opt_state)
@@ -195,9 +187,12 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       if(plot) self$plot_opt_path()
     },
     fit_final_model = function() {
+      if(is.null(self$final_learner)) self$build_final_learner()
       self$final_model = train(self$final_learner, self$task)
     },
     predict = function(newdata) {
+      assert(check_class(newdata, "data.frame"), check_class(newdata, "Task"), combine = "or")
+      if(is.null(self$final_model)) stop("Final model not fitted, use .$fit_final_model() to fit!")
       predict(self$final_model, newdata)
     },
 
@@ -210,11 +205,10 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       })
 
       pv = list()
-      if (!is.null(self$nthread))
-        pv$nthread = self$nthread
+      if (!is.null(self$nthread)) pv$nthread = self$nthread
 
       if (tt == "classif") {
-        predict.type = ifelse(any(req_prob_measure) | self$tune.threshold, "prob", "response")
+        predict.type = ifelse(any(req_prob_measure) | private$.tune_threshold, "prob", "response")
         if(length(td$class.levels) == 2) {
           objective = "binary:logistic"
           eval_metric = "error"
@@ -225,16 +219,16 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         }
         baselearner = makeLearner("classif.xgboost.earlystop", id = "classif.xgboost.earlystop",
           predict.type = predict.type, eval_metric = eval_metric, objective = objective,
-          early_stopping_rounds = self$early.stopping.rounds, maximize = !self$early_stopping_measure$minimize,
-          max.nrounds = self$max.nrounds, par.vals = pv)
+          early_stopping_rounds = private$.early_stopping_rounds, maximize = !self$early_stopping_measure$minimize,
+          max.nrounds = private$.max_nrounds, par.vals = pv)
 
       } else if (tt == "regr") {
         predict.type = NULL
         objective = "reg:linear"
         eval_metric = "rmse"
         baselearner = makeLearner("regr.xgboost.earlystop", id = "regr.xgboost.earlystop",
-          eval_metric = eval_metric, objective = objective, early_stopping_rounds = self$early.stopping.rounds,
-          maximize = !self$early_stopping_measure$minimize, max.nrounds = self$max.nrounds, par.vals = pv)
+          eval_metric = eval_metric, objective = objective, early_stopping_rounds = private$.early_stopping_rounds,
+          maximize = !self$early_stopping_measure$minimize, max.nrounds = private$.max_nrounds, par.vals = pv)
       } else {
         stop("Task must be regression or classification")
       }
@@ -246,17 +240,17 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       has.cat.feats = sum(getTaskDesc(self$task)$n.feat[c("factors", "ordered")]) > 0
       self$preproc_pipeline = NULLCPO
       if (has.cat.feats) {
-        self$preproc_pipeline %<>>% generateCatFeatPipeline(self$task, self$impact.encoding.boundary)
+        self$preproc_pipeline %<>>% generateCatFeatPipeline(self$task, private$.impact_encoding_boundary)
       }
       self$preproc_pipeline %<>>% cpoDropConstants()
 
       # process data and apply pipeline
       # split early stopping data
-      if (is.null(self$resample_instance))
-        self$resample_instance = makeResampleInstance(makeResampleDesc("Holdout", split = self$early.stopping.fraction), self$task)
+      if (is.null(private$.resample_instance))
+        private$.resample_instance = makeResampleInstance(makeResampleDesc("Holdout", split = private$.early_stopping_fraction), self$task)
 
-      task.test =  subsetTask(self$task, self$resample_instance$test.inds[[1]])
-      task.train = subsetTask(self$task, self$resample_instance$train.inds[[1]])
+      task.test =  subsetTask(self$task, private$.resample_instance$test.inds[[1]])
+      task.train = subsetTask(self$task, private$.resample_instance$train.inds[[1]])
 
       task.train %<>>% self$preproc_pipeline
       task.test %<>>% retrafo(task.train)
@@ -269,21 +263,21 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         props = getMeasureProperties(x)
         any(props == "req.truth") & !any(props == "req.prob")
       })
-      if (!any(is_thresholded_measure) & self$tune.threshold) {
+      if (!any(is_thresholded_measure) & private$.tune_threshold) {
         warning("Threshold tuning is active, but no measure for tuning thresholds!
-          Skipping threshold tuning!")
-        self$tune.threshold = FALSE
+          Deactivating threshold tuning!")
+        private$.tune_threshold = FALSE
       }
+
       smoof::makeMultiObjectiveFunction(name = "optimizeWrapperMultiCrit",
         fn = function(x) {
           x = x[!vlapply(x, is.na)]
-          lrn = setHyperPars(self$baselearner, par.vals = x)
+          lrn = setHyperPars(private$baselearner, par.vals = x)
           mod = train(lrn, transf_tasks$task.train)
           pred = predict(mod, transf_tasks$task.test)
           nrounds = self$get_best_iteration(mod)
-
           # For now we tune threshold of first applicable measure.
-          if (self$tune.threshold && getTaskType(transf_tasks$task.train) == "classif") {
+          if (private$.tune_threshold && getTaskType(transf_tasks$task.train) == "classif") {
             tune.res = tuneThreshold(pred = pred, measure = self$measures[is_thresholded_measure][[1]])
 
             if (length(self$measures[-which(is_thresholded_measure)[1]]) > 0) {
@@ -292,35 +286,34 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
             } else {
               res = tune.res$perf
             }
-            # self$opt_path_extras[[self$watch$current_iter + 1]] = list(.nrounds = nrounds, .threshold = tune.res$th)
-            attr(res, "extras") = list(.nrounds = nrounds, .threshold = tune.res$th)
+            attr(res, "extras") = list(nrounds = nrounds, .threshold = tune.res$th)
           } else {
             res = performance(pred, self$measures, model = mod, task = transf_tasks$task.test)
-            # self$opt_path_extras[[self$watch$current_iter + 1]] = list(.nrounds = nrounds)
-            attr(res, "extras") = list(.nrounds = nrounds)
+            attr(res, "extras") = list(nrounds = nrounds)
           }
+
           return(res)
         },
-        par.set = self$parset, noisy = FALSE, has.simple.signature = FALSE, minimize =  sapply(self$measures, function(x) x$minimize),
+        par.set = private$.parset, noisy = FALSE, has.simple.signature = FALSE, minimize = self$measure_minimize,
         n.objectives = length(self$measures)
       )
     },
     init_smbo = function() {
-      assert_class(self$control, "MBOControl", null.ok = TRUE)
+      assert_class(private$.control, "MBOControl", null.ok = TRUE)
       # Set defaults
-      if (is.null(self$control)) {
-        measures_ids = sapply(self$measures, function(x) x$id)
-        self$control = makeMBOControl(n.objectives = length(self$measures), y.name = measures_ids)
+      if (is.null(private$.control)) {
+        private$.control = makeMBOControl(n.objectives = length(self$measures), y.name = self$measure_ids)
         if (self$is_multicrit) {
-          self$control = setMBOControlMultiObj(self$control, method = "dib", dib.indicator = "eps")
-          self$control = setMBOControlInfill(self$control, crit = makeMBOInfillCritDIB(cb.lambda = 2L))
+          private$.control = setMBOControlMultiObj(private$.control, method = "dib", dib.indicator = "eps")
+          private$.control = setMBOControlInfill(private$.control, crit = makeMBOInfillCritDIB(cb.lambda = 2L))
         }
       }
-      des = generateDesign(n = self$design.size, self$parset)
+      des = generateDesign(n = private$.design_size, private$.parset)
       # Doing one iteration here to evaluate design saves a lot of redundancy.
-      opt_result = mbo(fun = self$obj_fun, design = des, learner = self$mbo.learner,
-        control = setMBOControlTermination(self$control, iters = 1L))
-      self$watch$increment_iter(self$design.size + 1)
+      private$.control = setMBOControlTermination(private$.control, iters = 1L)
+      opt_result = mbo(fun = self$obj_fun, design = des, learner = private$.mbo_learner,
+        control = private$.control)
+      private$.watch$increment_iter(private$.design_size + 1)
       return(opt_result$final.opt.state)
     },
     finalize_smbo = function() {
@@ -335,14 +328,14 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       return(opt_result)
     },
     build_final_learner = function() {
-      nrounds = self$get_best_from_opt(".nrounds")
+      nrounds = self$get_best_from_opt("nrounds")
       pars = trafoValue(self$parset, self$opt_result$x)
       pars = pars[!vlapply(pars, is.na)]
 
-      if (!is.null(self$baselearner$predict.type)) {
+      if (!is.null(private$baselearner$predict.type)) {
         lrn = makeLearner("classif.xgboost.custom", nrounds = nrounds,
-          objective = self$baselearner$par.vals$objective,
-          predict.type = self$baselearner$predict.type,
+          objective = private$baselearner$par.vals$objective,
+          predict.type = private$baselearner$predict.type,
           predict.threshold = self$get_best_from_opt(".threshold"))
       } else {
         lrn = makeLearner("regr.xgboost.custom", nrounds = nrounds, objective = objective)
@@ -363,47 +356,13 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       if(is.null(measure$weight)) measure$weight = 1L
       return(measure)
     },
-    # FIXME: This is not optimal. 
-    # Suggestion: pars are active bindings and have an _par counterpart that 
-    # stores the value. Add paramset?
     set_hyperpars = function(par_vals) {
       assert_list(par_vals, names = "unique")
-      lapply(names(par_vals), function(x) self[[paste0("set_", x)]](par_vals[[x]]))
+      lapply(names(par_vals), function(x) self[[x]](par_vals[[x]]))
     },
-    set_max_nrounds = function(value) {
-       self$max.nrounds = assert_integerish(value, lower = 1L, len = 1L)
-    },
-    set_early_stopping_rounds = function(value) {
-       self$early.stopping.rounds = assert_integerish(value, lower = 1L, len = 1L)
-    },
-    set_early_stopping_fraction = function(value) {
-      self$early.stopping.fraction = assert_numeric(early.stopping.fraction, lower = 0, upper = 1, len = 1L)
-    },
-    set_design_size = function(value) {
-      self$design.size = assert_integerish(design.size, lower = 1L, len = 1L)
-    },
-    set_tune_threshold = function(value) {
-      self$tune.threshold = assert_flag(value)
-    },
-    set_impact_encoding_boundary = function(value) {
-      self$impact_encoding_boundary = assert_integerish(value, lower = 0, len = 1L)
-    },
-    set_nthread = function(value) {
-      self$nthread = assert_integerish(value, lower = 1, len = 1L, null.ok = TRUE)
-    },
-    set_measures = function(value) {
-      self$measures = assert_list(value, types = "Measure", null.ok = TRUE)
-    },
-    set_parset = function(value) {
-      self$parset = assert_class(value, "ParamSet", null.ok = TRUE)
-    },
-    set_resample_instance = function(value) {
-      self$resample_instance = assert_class(value, "ResampleInstance", null.ok = TRUE)
-    },
-
     ## Getters
     # Get best value from optimization result
-    # @param what [`character(1)`]: ".nrounds" or ".threshold"
+    # @param what [`character(1)`]: "nrounds" or ".threshold"
     get_best_from_opt = function(what) {
       self$opt_result$opt.path$env$extra[[self$get_best_ind(self$opt_result)]][[what]]
     },
@@ -426,30 +385,33 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
 
     ## Plot functions -------------------------------------------------------------------
     plot_pareto_front = function(x = NULL, y = NULL, color = NULL, plotly = FALSE) {
+      assert(self$is_multicrit)
       df = self$get_opt_path_df()
-      assert_choice(x, colnames(df), null.ok = TRUE)
-      assert_choice(y, colnames(df), null.ok = TRUE)
+      # Drop 2nd lambda (MBO param)
+      df = df[, -rev(which(colnames(df) == "lambda"))[1]]
+      assert_choice(x, self$measure_ids, null.ok = TRUE)
+      assert_choice(y, self$measure_ids, null.ok = TRUE)
       assert_choice(color, colnames(df), null.ok = TRUE)
       if (is.null(x)) x = self$measure_ids[1]
       if (is.null(y) & length(self$measures) >= 2L) y = self$measure_ids[2]
 
+      # Plot pareto front
+      df$on_front = seq_len(nrow(df)) %in% self$opt_result$pareto.inds
+      front_data = df[df$on_front, c(x, y)]
+      front_data = front_data[order(front_data[[x]]), ]
+
       p = ggplot2::ggplot(df, ggplot2::aes_string(x = x, y = y, color = color)) +
-      ggplot2::geom_point() +
-      ggplot2::theme_bw()
+      ggplot2::geom_point(ggplot2::aes(alpha = ifelse(on_front, 1, 0.6), color = ifelse(on_front, "black", "red")), size = 1.5) +
+      ggplot2::theme_bw() +
+      ggplot2::geom_path(data = front_data, ggplot2::aes_string(x = x, y = y), alpha = 0.5, color = "grey", size = 1L) +
+      ggplot2::guides(color = FALSE, alpha = FALSE)
+      if (!self$measures[[x]]$minimize) {p = p + ggplot2::scale_x_reverse()}
+      if (!self$measures[[y]]$minimize) {p = p + ggplot2::scale_y_reverse()}
       if (plotly) plotly::ggplotly(p)
       else p
     },
-    plot_results = function(plotly = FALSE) {
-      df = self$get_opt_path_df()
-      df$iter = seq_len(nrow(df))
-      pdf =  reshape2::melt(df[, c("iter", self$measure_ids)],
-        variable.name = "measure",
-        value.names = "value", id.vars = "iter")
-      p = ggplot2::ggplot(pdf, ggplot2::aes(x = measure, y = value, color = measure)) +
-        ggplot2::geom_boxplot() +
-        ggplot2::theme_bw()
-      if (plotly) plotly::ggplotly(p)
-      else p
+    plot_opt_result = function(plotly = FALSE) {
+      plot(self$opt_result)
     },
     plot_opt_path = function() {
       opt_df = self$get_opt_path_df()
@@ -463,10 +425,10 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         ggplot2::guides(color = FALSE)
       print(p)
     },
-    plot_parallel_coordinates = function(trim = 10L) {
+    plot_parallel_coordinates = function(trim = 20L) {
       requirePackages("tidyr")
       opt_df = self$get_opt_path_df()
-      opt_df = opt_df[opt_df[, self$early_stopping_measure$id] >= sort(opt_df[, self$early_stopping_measure$id], decreasing = TRUE)[trim],]
+      opt_df = opt_df[opt_df[, self$early_stopping_measure$id] >= sort(opt_df[, self$early_stopping_measure$id], decreasing = TRUE)[min(trim, nrow(opt_df))],]
       # Drop 2nd lambda (MBO param)
       opt_df = opt_df[, -rev(which(colnames(opt_df) == "lambda"))[1]]
       pars = c(names(self$parset$pars), self$measure_ids)
@@ -491,17 +453,22 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
          paste0(meas, pars)
       }))
       pdf_norm$tooltip = text[pdf_norm$iter]
+      # Order x-axis and reorder for consitent paths
+      pdf_norm$normed_x = factor(as.character(pdf_norm$normed_x), levels = c(self$measure_ids, names(self$parset$pars)))
+      pdf_norm = pdf_norm[order(pdf_norm$normed_x, decreasing = FALSE),]
       p = ggplot2::ggplot(pdf_norm, ggplot2::aes(x = normed_x, y = y, group = iter,
         text = tooltip)) +
-        ggplot2::geom_path(ggplot2::aes(color = iter), alpha = 0.25) +
+        ggplot2::geom_path(ggplot2::aes(color = iter, alpha = y), alpha = 0.25) +
         ggplot2::geom_point(size = 4L, alpha = 0.5, color = "grey") +
         ggplot2::theme_bw() +
         ggplot2::guides(color = FALSE) +
         ggplot2::theme(
           axis.text.y = ggplot2::element_blank(),
-          axis.ticks.y = ggplot2::element_blank()
+          axis.ticks.y = ggplot2::element_blank(),
+          axis.text.x = ggplot2::element_text(angle = 22, hjust = 1, colour = ifelse(levels(pdf_norm$normed_x) %in% self$measure_ids, "blue", "black"))
         ) +
         ggplot2::ylab("") + ggplot2::xlab("")
+
       gg = plotly::ggplotly(p, tooltip = "text")
       plotly::highlight(gg, dynamic = TRUE)
     }
@@ -526,6 +493,118 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     },
     measure_minimize = function() {
       sapply(self$measures, function(x) x$minimize)
-    }
+    },
+
+    # Hyperparameters --------------------------------------------------------------------
+    max_nrounds = function(value) {
+      if (missing(value)) {
+        return(private$.max_nrounds)
+      } else {
+        private$.max_nrounds = assert_integerish(value, lower = 1L, len = 1L)
+        return(self)
+      }
+    },
+    early_stopping_rounds = function(value) {
+      if (missing(value)) {
+        return(private$.early_stopping_rounds)
+      } else {
+        private$.early_stopping_rounds = assert_integerish(value, lower = 1L, len = 1L)
+        return(self)
+      }
+    },
+    early_stopping_fraction = function(value) {
+      if (missing(value)) {
+        return(private$.early_stopping_fraction)
+      } else {
+        private$.early_stopping_fraction = assert_numeric(value, lower = 0, upper = 1, len = 1L)
+        return(self)
+      }
+    },
+    impact_encoding_boundary = function(value) {
+      if (missing(value)) {
+        return(private$.impact_encoding_boundary)
+      } else {
+        private$.impact_encoding_boundary = assert_numeric(value, lower = 0, upper = 1, len = 1L)
+        return(self)
+      }
+    },
+    tune_threshold = function(value) {
+      if (missing(value)) {
+        return(private$.tune_threshold)
+      } else {
+        private$.tune_threshold = assert_flag(value)
+        return(self)
+      }
+    },
+    nthread = function(value) {
+      if (missing(value)) {
+        return(private$.nthread)
+      } else {
+        self$nthread = assert_integerish(value, lower = 1, len = 1L, null.ok = TRUE)
+        return(self)
+      }
+    },
+    # MBO Hyperparameters
+    control = function(value) {
+      if (missing(value)) {
+        return(private$.control)
+      } else {
+        private$.control = assert_class(value, "MBOControl")
+        return(self)
+      }
+    },
+    design_size = function(value) {
+      if (missing(value)) {
+        return(private$.design_size)
+      } else {
+        private$.design_size = assert_integerish(value, lower = 1L, len = 1L)
+        return(self)
+      }
+    },
+    parset = function(value) {
+      if (missing(value)) {
+        return(private$.parset)
+      } else {
+        private$.parset = assert_class(value, "ParamSet", null.ok = TRUE)
+        return(self)
+      }
+    },
+    resample_instance = function(value) {
+      if (missing(value)) {
+        return(private$.resample_instance)
+      } else {
+        private$.resample_instance = assert_class(value, "ResampleInstance", null.ok = TRUE)
+        return(self)
+      }
+    },
+    logger = function(value) {
+        if (missing(value)) {
+        return(private$.logger)
+      } else {
+        private$.logger = assert_class(value, "logger")
+        return(self)
+      }
+    },
+    watch = function() {private$.watch}
+  ),
+  private = list(
+    # Hyperparameters
+    .max_nrounds = 3*10^3L,
+    .early_stopping_rounds = 20L,
+    .early_stopping_fraction = 4/5,
+    .impact_encoding_boundary = 10L,
+    .tune_threshold = TRUE,
+    .nthread = NULL,
+
+    # MBO Hyperparameters
+    .control = NULL,
+    .parset = NULL,
+    .design_size = 15L,
+    .mbo_learner = NULL,
+    .resample_instance = NULL,
+
+    .logger = NULL,
+    .watch = NULL,
+    baselearner = NULL
   )
 )

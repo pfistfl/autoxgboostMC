@@ -46,6 +46,12 @@ axgb = AutoxgboostMC$new(train.task, measures = list(auc))
 axgb$fit(time_budget = 15L)
 ```
 
+We can print the result:
+```{r}
+axgb
+```
+
+
 If we are not satisfied, we can continue the search process for more iterations:
 
 ```{r}
@@ -74,11 +80,8 @@ And visualize:
 
 ```{r}
 axgb$plot_pareto_front()
-axgb$plot_results()
+axgb$plot_opt_result()
 ```
-
-<<<<<<< HEAD
-
 
 ## Scenario 3: Predictive Accuracy and Fairness
 
