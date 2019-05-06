@@ -342,8 +342,6 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       }
       lrn = setHyperPars2(lrn, par.vals = pars)
       lrn = self$preproc_pipeline %>>% lrn
-      #FIXME mlrCPO #39
-      #lrn$properties = c(lrn$properties, "weights")
       return(lrn)
     },
 
