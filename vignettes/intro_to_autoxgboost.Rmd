@@ -72,12 +72,14 @@ axgb$optim.result$pareto.front
 axgb$optim.result$pareto.set
 axgb$optim.result$pareto.inds
 ```
+
+
+
 ## Scenario 3: Predictive Accuracy and Fairness
 
 ```{r}
 axgb = AutoxgboostMC$new(measures = list(acc, fairf1))
 axgb$fit(pid.task, time.budget = 5L)
-p = axgb$predict(iris.task)
 
 axgb$optim.result$pareto.front
 axgb$optim.result$pareto.set
