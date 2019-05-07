@@ -36,56 +36,52 @@ Default is \code{3600}, i.e., one hour.}
 
 \item{fit_final_model}{[\code{logical(1)}]\cr
 Should the model with the best found configuration be refitted on the complete dataset?
-Default is \code{FALSE}.}
+Default is \code{FALSE}. The model can also be fitted after optimization using `.$fit_final_model()`.}
 
 \item{plot}{[\code{logical(1)}]\cr
   Should the progress be plotted? Default is \code{TRUE}.
 
-Additional arguments that control the process:}
+Additional arguments that control the Bayesian Optimization process:
+Can be set / obtained via respective Active Bindings:}
 
 \item{control}{[\code{\link[mlrMBO]{MBOControl}}]\cr
 Control object for optimizer.
 If not specified, the default \code{\link[mlrMBO]{makeMBOControl}}] object will be used with
 \code{iterations} maximum iterations and a maximum runtime of \code{time_budget} seconds.}
 
-\item{mbo.learner}{[\code{\link[mlr]{Learner}}]\cr
+\item{mbo_learner}{[\code{\link[mlr]{Learner}}]\cr
 Regression learner from mlr, which is used as a surrogate to model our fitness function.
 If \code{NULL} (default), the default learner is determined as described here:
-\link[mlrMBO]{mbo_default_learner}.
-Can be set using `.$set_mbo_learner()`.}
+\link[mlrMBO]{mbo_default_learner}.}
 
-\item{design.size}{[\code{integer(1)}]\cr
-Size of the initial design. Default is \code{15L}.
-Can be set via `.$set_design_size()`}
+\item{design_size}{[\code{integer(1)}]\cr
+  Size of the initial design. Default is \code{15L}.
+
+Additional arguments that control the Pipeline:}
 
 \item{early_stopping_measure}{[\code{\link[mlr]{Measure}}]\cr
 Performance measure used for early stopping. Picks the first measure
 defined in measures by default.}
 
-\item{max.nrounds}{[\code{integer(1)}]\cr
-Maximum number of allowed boosting iterations. Default is \code{3000}.
-Can be set via `.$set_max_nrounds()`.}
-
-\item{early.stopping.rounds}{[\code{integer(1L}]\cr
+\item{early_stopping_rounds}{[\code{integer(1L}]\cr
 After how many iterations without an improvement in the boosting OOB error should be stopped?
-Default is \code{10}.
-Can be set via `.$set_early_stopping_rounds()`.}
+Default is \code{10}.}
 
-\item{early.stopping.fraction}{[\code{numeric(1)}]\cr
+\item{early_stopping_fraction}{[\code{numeric(1)}]\cr
 What fraction of the data should be used for early stopping (i.e. as a validation set).
-Default is \code{4/5}.
-Can be set via `.$set_early_stopping_fraction()`.}
+Default is \code{4/5}.}
 
-\item{impact.encoding.boundary}{[\code{integer(1)}]\cr
-Defines the threshold on how factor variables are handled. Factors with more levels than the \code{"impact.encoding.boundary"} get impact encoded while factor variables with less or equal levels than the \code{"impact.encoding.boundary"} get dummy encoded.
-For \code{impact.encoding.boundary = 0L}, all factor variables get impact encoded while for \code{impact.encoding.boundary = .Machine$integer.max}, all of them get dummy encoded.
-Default is \code{10}.
-Can be set via `.$set_impact_encoding_boundary()`.}
+\item{impact_encoding_boundary}{[\code{integer(1)}]\cr
+Defines the threshold on how factor variables are handled. Factors with more levels than the \code{"impact_encoding_boundary"} get impact encoded while factor variables with less or equal levels than the \code{"impact_encoding_boundary"} get dummy encoded.
+For \code{impact_encoding_boundary = 0L}, all factor variables get impact encoded while for \code{impact_encoding_boundary = .Machine$integer.max}, all of them get dummy encoded.
+Default is \code{10}.}
 
-\item{tune.threshold}{[logical(1)]\cr
+\item{tune_threshold}{[logical(1)]\cr
 Should thresholds be tuned? This has only an effect for classification, see \code{\link[mlr]{tuneThreshold}}.
-Default is \code{TRUE}.
-Can be set via `.$set_tune_threshold()`.}
+Default is \code{TRUE}.}
+
+\item{max_nrounds}{[\code{integer(1)}]\cr
+Maximum number of allowed boosting iterations. Default is \code{3000}.}
 }
 \description{
 An xgboost model is optimized based on a set of measures (see [\code{\link[mlr]{Measure}}]).
@@ -99,10 +95,16 @@ Arguments to `.$new()`:
 }
 \examples{
 \donttest{
+# Create a mlr Task
 iris.task = makeClassifTask(data = iris, target = "Species")
+# Instantiate the AutoxgboostMC Object
 axgb = AutoxgboostMC$new(iris.task, measure = auc)
+# Fit and Predict
 axgb$fit(time_budget = 5L)
 p = axgb$predict(iris.task)
+
+# Set hyperparameters:
+axgb$tune_threshold = FALSE
 }
 }
 \keyword{datasets}

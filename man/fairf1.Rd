@@ -3,12 +3,14 @@
 \docType{data}
 \name{fairf1}
 \alias{fairf1}
-\title{Variance of F1 Scores between groups}
+\title{Absolute differences of F1 Scores between groups
+See Hardt et al, 2016: https://arxiv.org/pdf/1610.02413.pdf}
 \format{An object of class \code{Measure} of length 10.}
 \usage{
 fairf1
 }
 \description{
-Variance of F1 Scores between groups
+Absolute differences of F1 Scores between groups
+See Hardt et al, 2016: https://arxiv.org/pdf/1610.02413.pdf
 }
 \keyword{datasets}

@@ -304,7 +304,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       if (is.null(private$.control)) {
         private$.control = makeMBOControl(n.objectives = length(self$measures), y.name = self$measure_ids)
         if (self$is_multicrit) {
-          private$.control = setMBOControlMultiObj(private$.control, method = "dib", dib.indicator = "eps")
+          private$.control = setMBOControlMultiObj(private$.control, "parego")
           private$.control = setMBOControlInfill(private$.control, crit = makeMBOInfillCritDIB(cb.lambda = 2L))
         }
       }

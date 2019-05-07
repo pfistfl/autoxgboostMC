@@ -69,6 +69,8 @@ axgb$predict(test.task)
 axgb$plot_parallel_coordinates()
 ```
 
+
+
 ## Scenario 2: Optimizing Accuracy and Prediction Speed
 
 ```{r}
@@ -98,8 +100,9 @@ p = axgb$predict(test.task)
 ## Scenario 4: Interpretability and Predictive Accuracy
 
 ```{r}
-axgb = AutoxgboostMC$new(measures = list(auc, timepredict))
-axgb$fit(pid.task, time_budget = 5L)
+load_all()
+axgb = AutoxgboostMC$new(train.task, measures = list(interpretability, timepredict))
+axgb$fit(time_budget = 5L)
 p = axgb$predict(iris.task)
 
 axgb$optim.result$pareto.front
@@ -124,7 +127,102 @@ axgb$set_hyperpars(list("early_stopping_rounds" = 25L))
 ```
 
 
-## UI Design Speccs
+## List of available measures:
+
+### Predictive Performance
+
+A host of measures for predictive performance is available from the package `mlr`.
+See `mlr::listMeasures()` or the {mlr Tutorial](https://mlr.mlr-org.com/) for a full list.
+
+### Interpretability
+Several measures for interpretability have been defined in [Molnar et al., 2019](https://arxiv.org/abs/1904.03867).
+We implement those measures the following measures:
+
+- Curve Complexity
+
+```{r}
+# Curve Complexity
+interpmec
+```
+
+- Interaction Strength
+
+```{r}
+#' Interaction Strength
+interpias
+```
+
+- Number of features
+
+```{r}
+# Number of features
+interpnf
+```
+
+### Fairness
+
+Fairness can be measured with respect to multiple criteria. In our case, we measure difference
+with respect to a variable that groups the observational data into 2 groups.
+
+1. Independence
+
+```{r}
+# Absolute differences of Positive Rate between groups
+fairpr
+```
+
+
+2. Sufficiency
+
+```{r}
+# Absolute differences of F1 Scores between groups
+fairf1
+```
+
+3. Calibration
+
+```{r}
+# Absolute differences of Positive Predictive Value between groups
+fairf1
+```
+
+### Robustness
+
+Robustness can be assessed with respect to multiple criteria. The most important ones incldue:
+
+1. Corruption Robustness
+
+See `?robustnoise` for more info
+
+```{r}
+# Robustness to feature corruption
+robustnoise
+
+# Robustness to featurewise corruption
+robustnoiseperfeat
+```
+
+2. Adversarial Robustness
+
+```{r}
+# Not implemented
+```
+
+3. Robustness against distribution shift
+
+```{r}
+# Not implemented
+```
+
+### Prediction Speed
+
+Prediction and training speed can be measured from within mlr using `timepredict` and `timetrain`.
+
+
+
+
+
+## FIXME: UI Design Speccs
 
 Tab1: AutoML Process:
 Choose a budget, start the process, visualize progress wrt. some measures
