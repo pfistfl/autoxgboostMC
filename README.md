@@ -36,22 +36,29 @@ task_train = subsetTask(pid.task, subset = train)
 task_test = subsetTask(pid.task, subset = !train)
 ```
 
+Then we start the AutoML process:
+
 ```r
 # Instantiate the object with a list of measures to optimize.
 axgb = AutoxgboostMC$new(task_train, measures = list(auc, timepredict))
 # Set hyperparameters (we want to work on two threads
 axgb$nthread(2L)
 # Fit for 5 seconds
-axgb$fit(time.budget = 5L)
+axgb$fit(time_budget = 15L)
+```
+
+
+```{r}
+# Afterwards we can predict
 p = axgb$predict(task_test)
 ```
 
 
 ```r
-df = axgb$model$get_tune_results()
-axgb$model$plot_results()
+axgb$model$plot_opt_result()
 axgb$model$plot_pareto_front()
 ```
+
 # autoxgboost - How to Cite
 
 The **Automatic Gradient Boosting** framework was presented at the [ICML/IJCAI-ECAI 2018 AutoML Workshop](https://sites.google.com/site/automl2018icml/accepted-papers) ([poster](poster_2018.pdf)).
