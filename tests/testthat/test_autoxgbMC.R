@@ -4,9 +4,9 @@ test_that("autoxgboostMC works on different tasks for single measure",  {
   tasks = list(
     sonar.task, # binary classification
     iris.fac,   # binary classification with factors
-    iris.task,  # multiclass classification
-    subsetTask(bh.task, subset = 1:50),
-    iris.fac)
+    iris.task  # multiclass classification
+    # subsetTask(bh.task, subset = 1:50)
+    )
 
   for (t in tasks) {
     axgb = AutoxgboostMC$new(t)
