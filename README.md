@@ -67,7 +67,7 @@ axgb$plot_pareto_front()
 
 AutoxgboostMC currently searches and optimizes the following Pipeline:
 
-```
+```r
 fix_factors %>% impact_encoding | dummy encoding %>% drop_constant_feats %>% learner %>% tune_threshold
 ```
 
