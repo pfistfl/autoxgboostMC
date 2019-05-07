@@ -304,7 +304,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       if (is.null(private$.control)) {
         private$.control = makeMBOControl(n.objectives = length(self$measures), y.name = self$measure_ids)
         if (self$is_multicrit) {
-          private$.control = setMBOControlMultiObj(private$.control, "parego")
+          private$.control = setMBOControlMultiObj(private$.control, method = "dib", dib.indicator = "eps")
           private$.control = setMBOControlInfill(private$.control, crit = makeMBOInfillCritDIB(cb.lambda = 2L))
         }
       }
@@ -399,26 +399,35 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       front_data = front_data[order(front_data[[x]]), ]
 
       p = ggplot2::ggplot(df, ggplot2::aes_string(x = x, y = y, color = color)) +
-      ggplot2::geom_point(ggplot2::aes(alpha = ifelse(on_front, 1, 0.6), color = ifelse(on_front, "black", "red")), size = 1.5) +
+      ggplot2::geom_path(data = front_data, ggplot2::aes_string(x = x, y = y), alpha = 0.5, color = "grey", size = 1) +
+      ggplot2::geom_point(ggplot2::aes(alpha = on_front, color = on_front), size = 1.5) +
       ggplot2::theme_bw() +
-      ggplot2::geom_path(data = front_data, ggplot2::aes_string(x = x, y = y), alpha = 0.5, color = "grey", size = 1L) +
-      ggplot2::guides(color = FALSE, alpha = FALSE)
-      if (!self$measures[[x]]$minimize) {p = p + ggplot2::scale_x_reverse()}
-      if (!self$measures[[y]]$minimize) {p = p + ggplot2::scale_y_reverse()}
+      ggplot2::guides(color = FALSE, alpha = FALSE) +
+      ggplot2::scale_color_manual(values = c("red", "black")) +
+      ggplot2::scale_alpha_manual(values= c(1, 0.6))
+
+      measures = setNames(self$measures, self$measure_ids)
+      if (!measures[[x]]$minimize) {p = p + ggplot2::scale_x_reverse()}
+      if (!measures[[y]]$minimize) {p = p + ggplot2::scale_y_reverse()}
       if (plotly) plotly::ggplotly(p)
       else p
     },
-    plot_opt_result = function(plotly = FALSE) {
+    plot_opt_result = function() {
       plot(self$opt_result)
     },
     plot_opt_path = function() {
       opt_df = self$get_opt_path_df()
       opt_df$iter = seq_len(nrow(opt_df))
-      pdf = do.call("rbind", lapply(self$measure_ids, function(x) data.frame("value" = opt_df[,x], "measure" = x, "iter" = opt_df$iter)))
+      cumbest = function(x, minimize) {if(minimize) cummin(x) else cummax(x)}
+      measure_minimize = setNames(self$measure_minimize, self$measure_ids)
+      pdf = do.call("rbind", lapply(self$measure_ids, function(x)
+        data.frame("value" = opt_df[,x], "measure" = x, "iter" = opt_df$iter, "value_opt" = cumbest(opt_df[,x], measure_minimize[x]))))
       p = ggplot2::ggplot(pdf) +
-        ggplot2::geom_point(ggplot2::aes(x = iter, y = value, color = measure)) +
-        ggplot2::geom_path(ggplot2::aes(x = iter, y = value, color = measure)) +
+        ggplot2::geom_point(ggplot2::aes(x = iter, y = value, color = measure), alpha = 0.7) +
+        ggplot2::geom_path(ggplot2::aes(x = iter, y = value, color = measure), alpha = 0.5) +
+        ggplot2::geom_path(ggplot2::aes(x = iter, y = value_opt, color = measure), alpha = 0.8, size = 2L) +
         ggplot2::theme_bw() +
+        ggplot2::ylab("") +
         ggplot2::facet_grid(measure ~ ., scales = "free_y") +
         ggplot2::guides(color = FALSE)
       print(p)

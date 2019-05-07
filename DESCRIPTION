@@ -1,8 +1,8 @@
 Package: autoxgboostMC
 Title: Automatic Preprocessing, Fitting and Tuning for xgboost using multiple criteria.
 Version: 0.0.0.9000
-Authors@R: c(person("Janek", "Thomas", email = "janek.tho@gmail.com", role = c("aut", "cre")),
-             person("Florian", "Pfisterer", email = "pfistererf@gmail.com", role = c("aut")))
+Authors@R: c(person("Florian", "Pfisterer", email = "pfistererf@gmail.com", role = c("aut", "cre")),
+    person("Janek", "Thomas", email = "janek.tho@gmail.com", role = c("aut")))
 Description: Automatic tuning and fitting of 'xgboost'. Use early stopping
     to determine the optimal number of iterations and Bayesian optimization (from
     'mlrMBO') for all further parameters. Tunes class weights and thresholds in classification.
@@ -26,7 +26,8 @@ Imports:
     R6,
     log4r
 Suggests:
-    testthat,
+    autoiml,
+    ggplot2,
     rpart,
     cmaes,
     rgenoud,
@@ -34,7 +35,9 @@ Suggests:
     anytime,
     lubridate,
     knitr,
+    plotly,
     rmarkdown,
+    testthat,
     shiny
 RoxygenNote: 6.1.1
 VignetteBuilder: knitr

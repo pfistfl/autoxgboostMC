@@ -1,12 +1,32 @@
-### Fairness Measures:
-# I) Independence
+#' Fairness Measures
+#'
+#' Fair algorithms usually are defined as having similar performances within
+#' different dataset splits.
+#' We implement the following measures:\cr
+#'
+#' Independence `fairpr` \cr
+#' Sufficiency `fairf1` \cr
+#' Callibration `fairppv` \cr
+#'
+#' The arguments can be set via `extra.args` for all measures.
+#'
+#' @param grouping [`function` | `factor` | `character`]\cr
+#'   Either a function(df), a factor or a character column name that returns a factor.
+#'   If `function`, df is the output of `getTaskData()`.
+#'   This factor is used to split the data and compute differences between groups.
+#' @rdname fairness_measures
+#' @name fairness_measures
+#' @examples \dontrun{setMeasurePars(fairf1, grouping = function(df) {as.factor(df$age > 30)})}
+NULL
+
+# 1) Independence
 #' Absolute differences of Positive Rate between groups
 #'
 #' @export
 fairpr = mlr::makeMeasure(id = "fairness.pr", minimize = TRUE, properties = c("classif", "response", "req.task"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
-    groups = get_grouping(extra.args, 2L)
+    groups = get_grouping(task, extra.args, 2L)
     fs = sapply(split(pred$data, f = groups), function(x) {
      mean(x$response == pred$task.desc$positive, na.rm = TRUE)
     })
@@ -22,16 +42,8 @@ fairpr = mlr::makeMeasure(id = "fairness.pr", minimize = TRUE, properties = c("c
 fairf1 = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("classif", "response", "req.task"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
-
-    if (is.character(extra.args$grouping)) {
-      pred$data$groups = assert_factor(getTaskData(task)[[extra.args$grouping]]) # Task-column that is a factor
-    } else if (is.function(extra.args$grouping)) {
-      pred$data$groups = assert_factor(extra.args$grouping(getTaskData(task))) # Function that returns a factor
-    } else {
-      pred$data$groups = assert_factor(extra.args$grouping) # Or a factor.
-    }
-    assert(length(levels(pred$data$groups)) == 2L)
-    fs = sapply(split(pred$data, f = pred$data$groups), function(x) {
+    groups = get_grouping(task, extra.args, 2L)
+    fs = sapply(split(pred$data, f = groups), function(x) {
      measureF1(x$truth, x$response, pred$task.desc$positive)
     })
     abs(max(fs) - min(fs))
@@ -43,15 +55,8 @@ fairf1 = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("c
 varf1 = mlr::makeMeasure(id = "fairness.varf1", minimize = TRUE, properties = c("classif", "response", "req.task"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
-
-    if (is.character(extra.args$grouping)) {
-      pred$data$groups = assert_factor(getTaskData(task)[[extra.args$grouping]]) # Task-column that is a factor
-    } else if (is.function(extra.args$grouping)) {
-      pred$data$groups = assert_factor(extra.args$grouping(getTaskData(task))) # Function that returns a factor
-    } else {
-      pred$data$groups = assert_factor(extra.args$grouping) # Or a factor.
-    }
-    fs = sapply(split(pred$data, f = pred$data$groups), function(x) {
+    groups = get_grouping(task, extra.args)
+    fs = sapply(split(pred$data, f = groups), function(x) {
      measureF1(x$truth, x$response, pred$task.desc$positive)
     })
     var(fs)
@@ -62,12 +67,13 @@ varf1 = mlr::makeMeasure(id = "fairness.varf1", minimize = TRUE, properties = c(
 
 
 ## 3) Calibration
+
 #' Absolute differences of Positive Predictive Value between groups
 #' @export
 fairppv = mlr::makeMeasure(id = "fairness.ppv", minimize = TRUE, properties = c("classif", "response", "req.task"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
-    groups = get_grouping(extra.args, 2L)
+    groups = get_grouping(task, extra.args, 2L)
     fs = sapply(split(pred$data, f = groups), function(x) {
       measurePPV(x$truth, x$response, pred$task.desc$positive)
     })
@@ -78,48 +84,109 @@ fairppv = mlr::makeMeasure(id = "fairness.ppv", minimize = TRUE, properties = c(
 ### Interpretability Measures:
 # FIXME: We have to compute 'imeasure' globally only once. Or aggregate, otherwise this is very slow.
 
+#' Interpretability Measures
+#'
+#'Several measures for interpretability have been defined in [Molnar et al., 2019](https://arxiv.org/abs/1904.03867).
+#' We implement those measures the following measures:
+#'
+#' Curve Complexity `interpmec` \cr
+#' Interaction Strength `interpias` \cr
+#' Number of features `interpnf` \cr
+#'
+#' The arguments can be controlled via `extra.args` for the aforementioned measures.
+#'
+#' @param grid.size [`integer(1)`]\cr
+#'   Controls the grid to evaluate on. Default: 10L.
+#' @param max_seg_cat [`integer(1)`]\cr
+#'   Max. number of segments for categorical variables. Default: 5L.
+#' @param max_seg_num [`integer(1)`]\cr
+#'   Max. number of segments for numerical variables. Default: 5L.
+#' @param epsilon [`numeric(1)`]\cr
+#'   1 - Minimum R^2.
+#' @rdname interpretability_measures
+#' @name interpretability_measures
+#' @examples \dontrun{setMeasurePars(interpmec, grid.size = 10L)}
+NULL
+
 #' Curve Complexity
+#' See `?interpretability_measures` for additonal info
 #' For more info see Molnar et al., 2019 https://arxiv.org/abs/1904.03867
 #' @export
-interpmec = mlr::makeMeasure(id = "interp.mec", minimize = TRUE, properties = c("classif", "response", "req.task"),
-  extra.args = list(), best = 0, worst = 1,
+interpmec = mlr::makeMeasure(id = "interp.mec", minimize = TRUE, properties = c("classif", "response", "req.task", "req.model"),
+  extra.args = list(grid.size = 10, max_seg_cat = 5, max_seg_num = 5, epsilon = 0.05), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
+    grid.size = assert_integerish(extra.args$grid.size)
+    max_seg_cat = assert_integerish(extra.args$max_seg_cat)
+    max_seg_num = assert_integerish(extra.args$max_seg_num)
+    epsilon = assert_numeric(extra.args$epsilon)
+
     task_data = getTaskData(task)
     pred = iml::Predictor$new(model, task_data, y = task$task.desc$target)
     pred$class = 1L
-    imeasure = autoiml:::FunComplexity$new(pred, max_seg_cat = 0.05, max_seg_num = 5, epsilon = 0.05, grid.size = 10)
-    return(round(imeasure$c_wmean, 1))
+    imeasure = autoiml:::FunComplexity$new(pred, max_seg_cat = max_seg_cat, max_seg_num = max_seg_num, epsilon = epsilon, grid.size = grid.size)
+  return(round(imeasure$c_wmean, 1))
   }
 )
 
 #' Interaction Strength
+#' See `?interpretability_measures` for additonal info
 #' For more info see Molnar et al., 2019 https://arxiv.org/abs/1904.03867
 #' @export
-interpias = mlr::makeMeasure(id = "interp.ias", minimize = TRUE, properties = c("classif", "response", "req.task"),
-  extra.args = list(), best = 0, worst = 1,
+interpias = mlr::makeMeasure(id = "interp.ias", minimize = TRUE, properties = c("classif", "response", "req.task", "req.model"),
+  extra.args = list(grid.size = 10, max_seg_cat = 5, max_seg_num = 5, epsilon = 0.05), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
+    grid.size = assert_integerish(extra.args$grid.size)
+    max_seg_cat = assert_integerish(extra.args$max_seg_cat)
+    max_seg_num = assert_integerish(extra.args$max_seg_num)
+    epsilon = assert_numeric(extra.args$epsilon)
+
     task_data = getTaskData(task)
     pred = iml::Predictor$new(model, task_data, y = task$task.desc$target)
     pred$class = 1L
-    imeasure = autoiml:::FunComplexity$new(pred, max_seg_cat = 0.05, max_seg_num = 5, epsilon = 0.05, grid.size = 10)
+    imeasure = autoiml:::FunComplexity$new(pred, max_seg_cat = max_seg_cat, max_seg_num = max_seg_num, epsilon = epsilon, grid.size = grid.size)
     return(imeasure$n_features)
   }
 )
 
 #' Number of features
+#' See `?interpretability_measures` for additonal info
 #' For more info see Molnar et al., 2019 https://arxiv.org/abs/1904.03867
 #' @export
-interpnf = mlr::makeMeasure(id = "interp.nfeat", minimize = TRUE, properties = c("classif", "response", "req.task"),
-  extra.args = list(), best = 0, worst = 1,
+interpnf = mlr::makeMeasure(id = "interp.nfeat", minimize = TRUE, properties = c("classif", "response", "req.task", "req.model"),
+  extra.args = list(grid.size = 10, max_seg_cat = 5, max_seg_num = 5, epsilon = 0.05), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
+    grid.size = assert_integerish(extra.args$grid.size)
+    max_seg_cat = assert_integerish(extra.args$max_seg_cat)
+    max_seg_num = assert_integerish(extra.args$max_seg_num)
+    epsilon = assert_numeric(extra.args$epsilon)
+
     task_data = getTaskData(task)
     pred = iml::Predictor$new(model, task_data, y = task$task.desc$target)
     pred$class = 1L
-    imeasure = autoiml:::FunComplexity$new(pred, max_seg_cat = 0.05, max_seg_num = 5, epsilon = 0.05, grid.size = 10)
-    return(imeasure$n_features)
+    imeasure = autoiml:::FunComplexity$new(pred, max_seg_cat = max_seg_cat, max_seg_num = max_seg_num, epsilon = epsilon, grid.size = grid.size)
+  return(imeasure$n_features)
   }
 )
+
+
 ### Robustness Measures:
+
+#' Robustness Measures
+#'
+#' We implement the following measures:
+#'
+#' Noise corruption on full dataset: `robustnoise` \cr
+#' Featurewise corruption: `robustnoiseperfeat` \cr
+#'
+#' The following arguments can be controlled via `extra.args`:
+#' @param eps [`numeric(1)`]\cr
+#'   Magnitude of injected noise. Default: 0.01
+#' @param n [`integer(1)`]\cr
+#'   Repliactions for the corruption process. Results are averaged. Default: 1L.
+#' @rdname robustness_measures
+#' @name robustness_measures
+#' @examples \dontrun{setMeasurePars(robustnoise, eps = 0.05)}
+NULL
 
 #' Noise Injection full dataset
 #'
@@ -131,14 +198,14 @@ interpnf = mlr::makeMeasure(id = "interp.nfeat", minimize = TRUE, properties = c
 #' @param n [`integer(1)`]\cr
 #'   Repliactions for the corruption process. Results are averaged. Default: 1L.
 #' @export
-robustnoise = mlr::makeMeasure(id = "robustness.noise", minimize = FALSE, properties = c("classif", "response", "req.task"),
-  extra.args = list(eps = 0.01, n = 1L), best = 0, worst = 1,
+robustnoise = mlr::makeMeasure(id = "robustness.noise", minimize = FALSE, properties = c("classif", "response", "req.task", "req.model"),
+  extra.args = list(eps = 0.01, n = 5L), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
     eps = assert_numeric(extra.args$eps)
-    reps = assert_integerish(n)
+    reps = assert_integerish(extra.args$n)
     # Repeat n times for robustness.
-    res = vnapply(seq_len(n), function() {
-      noise_pred = predict(model, newdata = inject_noise(task, eps))
+    res = vnapply(seq_len(extra.args$n), function(i) {
+      noise_pred = predict(model, newdata = inject_noise_task(task, eps))
       mean(pred$data$response == noise_pred$data$response, na.rm = TRUE)
     })
     mean(res)
@@ -159,15 +226,15 @@ robustnoise = mlr::makeMeasure(id = "robustness.noise", minimize = FALSE, proper
 #' @param n [`integer(1)`]\cr
 #'   Repliactions for the corruption process. Results are averaged. Default: 1L.
 #' @export
-robustnoiseperfeat = mlr::makeMeasure(id = "robustness.perfeat.noise", minimize = FALSE, properties = c("classif", "response", "req.task"),
-  extra.args = list(eps = 0.01, n = 1L), best = 0, worst = 1,
+robustnoiseperfeat = mlr::makeMeasure(id = "robustness.perfeat.noise", minimize = FALSE, properties = c("classif", "response", "req.task", "req.model"),
+  extra.args = list(eps = 0.01, n = 5L), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
     eps = assert_numeric(extra.args$eps)
-    reps = assert_integerish(n)
+    reps = assert_integerish(extra.args$n)
     # Repeat n times for robustness.
-    res = vnapply(seq_len(n), function() {
+    res = vnapply(seq_len(extra.args$n), function(i) {
       perfeat_res = vnapply(seq_len(getTaskNFeats(task)), function(feature) {
-        noise_pred = predict(model, newdata = inject_noise_single_feature(task, eps))
+        noise_pred = predict(model, newdata = inject_noise_single_feature(task, feature, eps))
         mean(pred$data$response == noise_pred$data$response, na.rm = TRUE)
       })
       mean(perfeat_res)
@@ -178,35 +245,37 @@ robustnoiseperfeat = mlr::makeMeasure(id = "robustness.perfeat.noise", minimize 
 
 # Adversarial Examples
 
+# Distribution shift
+
 
 ### Helper functions
 
 #' Obtain a grouping factor from either a data column, an additional factor or a function.
-get_grouping = function(extra_args, n_levels = NULL) {
-  if (is.character(extra.args$grouping)) {
-    groups = assert_factor(getTaskData(task)[[extra.args$grouping]]) # Task-column that is a factor
-  } else if (is.function(extra.args$grouping)) {
-    groups = assert_factor(extra.args$grouping(getTaskData(task))) # Function that returns a factor
+get_grouping = function(task, extra_args, n_levels = NULL) {
+  if (is.character(extra_args$grouping)) {
+    groups = assert_factor(getTaskData(task)[[extra_args$grouping]]) # Task-column that is a factor
+  } else if (is.function(extra_args$grouping)) {
+    groups = assert_factor(extra_args$grouping(getTaskData(task))) # Function that returns a factor
   } else {
-    groups = assert_factor(extra.args$grouping) # Or a factor.
+    groups = assert_factor(extra_args$grouping) # Or a factor.
   }
-  if (!is.null(n_levels)) assert_true(length(levels(pred$data$groups)) == n_levels)
+  if (!is.null(n_levels)) assert_true(length(levels(groups)) == n_levels)
   return(groups)
 }
 
 #' Inject noise into every feature of a dataset.
 inject_noise_task = function(task, eps = 0.01) {
   feats = getTaskData(task, target.extra = TRUE)$data
-  feats = sapply(feats, inject_noise, eps = eps)
-  return(feats)
+  feats = lapply(feats, inject_noise, eps = eps)
+  return(data.frame(do.call("cbind", feats)))
 }
 
 #' Inject noise into a single feature of a dataset.
 inject_noise_single_feature = function(task, feature, eps = 0.05) {
   assert_integerish(feature)
   feats = getTaskData(task, target.extra = TRUE)$data
-  feats[, feature, drop = FALSE] = inject_noise(feats[, feature, drop = FALSE])
-  return(feats)
+  feats[, feature] = inject_noise(feats[, feature], eps = eps)
+  return(data.frame(feats))
 }
 
 #' Inject noise into a single feature
@@ -219,5 +288,6 @@ inject_noise = function(x, eps) {
     flip = sample(c(TRUE, FALSE), length(x), replace = TRUE, prob = c(eps, 1 - eps))
     x[flip] = sample(x, flip)
   }
+  return(x)
 }
 

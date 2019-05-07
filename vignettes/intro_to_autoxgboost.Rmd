@@ -66,7 +66,7 @@ axgb$predict(test.task)
 
 
 ```{r}
-axgb$plot_parallel_coordinates()
+axgb$plot_parallel_coordinates(plotly = FALSE)
 ```
 
 
@@ -75,7 +75,7 @@ axgb$plot_parallel_coordinates()
 
 ```{r}
 axgb = AutoxgboostMC$new(train.task, measures = list(auc, timepredict))
-axgb$fit(time_budget = 10L)
+axgb$fit(time_budget = 15L)
 ```
 
 And visualize:
@@ -90,8 +90,8 @@ axgb$plot_opt_result()
 ```{r}
 age_fairf1 = setMeasurePars(fairf1, grouping = function(df) as.factor(df$age > 30))
 axgb = AutoxgboostMC$new(train.task, measures = list(acc, age_fairf1))
-axgb$set_tune_threshold(FALSE)
-axgb$fit(time_budget = 20L)
+axgb$tune_threshold = FALSE
+axgb$fit(time_budget = 30L)
 p = axgb$predict(test.task)
 ```
 
@@ -100,9 +100,8 @@ p = axgb$predict(test.task)
 ## Scenario 4: Interpretability and Predictive Accuracy
 
 ```{r}
-load_all()
-axgb = AutoxgboostMC$new(train.task, measures = list(interpretability, timepredict))
-axgb$fit(time_budget = 5L)
+axgb = AutoxgboostMC$new(train.task, measures = list(auc, interpnf, robustnoise))
+axgb$fit(time_budget = 15L)
 p = axgb$predict(iris.task)
 
 axgb$optim.result$pareto.front

@@ -17,8 +17,8 @@ Stopwatch = R6::R6Class("Stopwatch",
 
       self$max_iterations = assert_integerish(iterations, null.ok = TRUE)
       if(is.null(iterations)) self$max_iterations = Inf
-      # FIXME: Write training time
-      self$set_per_fit_time()
+      # FIXME: Write training time  from outside
+      if (is.null(self$per_fit_time)) self$set_per_fit_time()
     },
     get_time_left = function() {
       floor(self$time_budget - as.numeric(Sys.time() - self$start_time))
@@ -27,7 +27,12 @@ Stopwatch = R6::R6Class("Stopwatch",
       self$per_fit_time = assert_integerish(value)
     },
     stop = function() {
-      (self$get_time_left() < self$per_fit_time) || (self$current_iter >= self$max_iterations)
+      time_left = self$get_time_left()
+      if(is.numeric(time_left) & time_left >= 0L) {
+        (time_left < self$per_fit_time) || (self$current_iter >= self$max_iterations)
+      } else {
+        TRUE
+      }
     },
     increment_iter = function(by = 1L) {
       self$current_iter = self$current_iter + by

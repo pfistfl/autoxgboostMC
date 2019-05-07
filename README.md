@@ -10,6 +10,11 @@
 * Installing the development version
 
     ```splus
+    # Install requirements
+    devtools::install_github("compstat-lmu/paper_2019_iml_measures")
+    devtools::install_github("johnmyleswhite/log4r")
+    devtools::install_github("mlr-org/mlrMBO")
+    # Install package
     devtools::install_github("ja-thomas/autoxgboostMC")
     ```
 
@@ -20,24 +25,24 @@ and the bayesian optimization framework [mlrMBO](https://github.com/mlr-org/mlrM
 
 **Work in progress**!
 
-AutoxgboostMC embraces `R6` for a cleaner design. 
+AutoxgboostMC embraces `R6` for a cleaner design.
 See the example code below for the new *API*.
 
 
-First we split our data into train and test. 
+First we split our data into train and test.
 ```r
 train = sample(c(TRUE, FALSE), getTaskSize(pid.task), replace = TRUE)
-task_train = subsetTask(pid.task, subset = train) 
-task_test = subsetTask(pid.task, subset = !train) 
+task_train = subsetTask(pid.task, subset = train)
+task_test = subsetTask(pid.task, subset = !train)
 ```
 
 ```r
 # Instantiate the object with a list of measures to optimize.
-axgb = AutoxgboostMC$new(measures = list(auc, timepredict))
-# Set hyperparameters
-axgb$set_nthread(2L)
-# Fit on a Task
-axgb$fit(task_train, time.budget = 5L)
+axgb = AutoxgboostMC$new(task_train, measures = list(auc, timepredict))
+# Set hyperparameters (we want to work on two threads
+axgb$nthread(2L)
+# Fit for 5 seconds
+axgb$fit(time.budget = 5L)
 p = axgb$predict(task_test)
 ```
 

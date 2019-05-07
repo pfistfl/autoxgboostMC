@@ -4,6 +4,7 @@
 \name{interpias}
 \alias{interpias}
 \title{Interaction Strength
+See `?interpretability_measures` for additonal info
 For more info see Molnar et al., 2019 https://arxiv.org/abs/1904.03867}
 \format{An object of class \code{Measure} of length 10.}
 \usage{
@@ -11,6 +12,7 @@ interpias
 }
 \description{
 Interaction Strength
+See `?interpretability_measures` for additonal info
 For more info see Molnar et al., 2019 https://arxiv.org/abs/1904.03867
 }
 \keyword{datasets}
