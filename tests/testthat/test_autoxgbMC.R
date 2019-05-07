@@ -1,17 +1,23 @@
 context("AutoxgboostMC")
 
 test_that("autoxgboostMC works on different tasks for single measure",  {
+
+  if (EXPENSIVE_TESTS) {
   tasks = list(
     sonar.task, # binary classification
     iris.fac,   # binary classification with factors
     iris.task   # multiclass classification
     # subsetTask(bh.task, subset = 1:50)
     )
+  } else {
+    tasks = list(iris.task)
+  }
 
   for (t in tasks) {
     axgb = AutoxgboostMC$new(t)
     expect_class(axgb, "R6")
-    axgb$fit(time_budget = 2L, plot = FALSE)
+    axgb$tune_threshold = FALSE
+    axgb$fit(time_budget = 5L, plot = FALSE)
     expect_class(axgb$opt_result, "MBOSingleObjResult")
     expect_class(axgb$final_learner, "Learner")
     expect_class(axgb$final_model, "WrappedModel")
@@ -20,25 +26,28 @@ test_that("autoxgboostMC works on different tasks for single measure",  {
   }
 })
 
+context("Mutlicrit")
 test_that("Multiple measures work",  {
-    fairf11 = setMeasurePars(fairf1, grouping = function(df) as.factor(df$age > 30))
-    axgb = AutoxgboostMC$new(pid.task, measures = list(acc, fairf11))
-    expect_class(axgb, "R6")
-    axgb$tune_threshold = FALSE
+  fairf11 = setMeasurePars(fairf1, grouping = function(df) as.factor(df$age > 30))
+  axgb = AutoxgboostMC$new(pid.task, measures = list(acc, fairf11))
+  expect_class(axgb, "R6")
+  axgb$tune_threshold = FALSE
+  if (EXPENSIVE_TESTS) {
     expect_warning(axgb$fit(time_budget = 5L, plot = FALSE))
     expect_class(axgb$opt_result, "MBOResult")
     expect_class(axgb$final_learner, "Learner")
     expect_class(axgb$final_model, "WrappedModel")
     p = axgb$predict(pid.task)
     expect_class(p, "Prediction")
+  }
 })
 
 
 
 context("Printer")
 test_that("autoxgboost printer works", {
-  mod = AutoxgboostMC$new(pid.task, measures = list(auc))
-  expect_warning(mod$fit(time_budget = 3L, plot = FALSE))
+  expect_warning(mod <- AutoxgboostMC$new(pid.task, measures = list(auc)))
+  suppressWarnings(mod$fit(time_budget = 6L, plot = FALSE))
   expect_output(print(mod), "Autoxgboost tuning result")
   expect_output(print(mod), "Recommended parameters:")
   expect_output(print(mod), "eta:")

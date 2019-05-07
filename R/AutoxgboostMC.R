@@ -116,6 +116,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     },
     print = function(...) {
       catf("AutoxgboostMC Learner")
+      catf("Task: %s (%s)", self$task$task.desc$id, self$task$type)
       catf("Measures: %s", paste0(self$measure_ids, collapse = ","))
       catf("Trained: %s", ifelse(is.null(self$model), "no", "yes"))
       if (!is.null(self$opt_result)) {
@@ -175,6 +176,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       self$opt_result = self$finalize_smbo()
     },
     fit_iteration = function(plot) {
+      log4r::debug(private$.logger, catf("Fitting Iteration %s", private$.watch$current_iter))
       prop = proposePoints(self$opt_state)
       x = Map(f = function(par, pt) {
         if(!is.null(par$trafo)) par$trafo(pt)
@@ -575,6 +577,14 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         return(private$.parset)
       } else {
         private$.parset = assert_class(value, "ParamSet", null.ok = TRUE)
+        return(self)
+      }
+    },
+    mbo_learner = function(value) {
+      if (missing(value)) {
+        return(private$.mbo_learner)
+      } else {
+        private$.mbo_learner = assert_class(value, "Learner", null.ok = TRUE)
         return(self)
       }
     },

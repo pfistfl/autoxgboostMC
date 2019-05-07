@@ -1,3 +1,5 @@
+EXPENSIVE_TESTS = FALSE
+
 configureMlr(show.learner.output = FALSE)
 options(mlrMBO.show.info = FALSE, mlrMBO.debug.mode = TRUE)
 
@@ -8,7 +10,6 @@ ctrl = setMBOControlInfill(ctrl,
   opt.focussearch.maxit = 1,
   opt.focussearch.points = 100,
   opt.restarts = 1)
-
 mbo.learner = makeLearner("regr.rpart")
 
 
@@ -24,3 +25,4 @@ iris.miss = makeClassifTask(data = iris.miss, target = "Species")
 #iris.time = iris
 #iris.time$time1 = as.numeric(as.POSIXlt(runif(150, 0, 10^5), origin = "2017-02-03 08:00:00"))
 #iris.time = makeClassifTask(data = iris.time, target = "Species")
+
