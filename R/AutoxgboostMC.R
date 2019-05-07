@@ -116,6 +116,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     },
     print = function(...) {
       catf("AutoxgboostMC Learner")
+      catf("Measures: %s", paste0(self$measure_ids, collapse = ","))
       catf("Trained: %s", ifelse(is.null(self$model), "no", "yes"))
       if (!is.null(self$opt_result)) {
         op = self$opt_result$opt.path
@@ -356,7 +357,8 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     },
     set_hyperpars = function(par_vals) {
       assert_list(par_vals, names = "unique")
-      lapply(names(par_vals), function(x) self[[x]](par_vals[[x]]))
+      lapply(names(par_vals), function(x) self[[x]] = par_vals[[x]])
+      invisible(self)
     },
     ## Getters
     # Get best value from optimization result

@@ -66,7 +66,7 @@ axgb$predict(test.task)
 
 
 ```{r}
-axgb$plot_parallel_coordinates(plotly = FALSE)
+axgb$plot_parallel_coordinates()
 ```
 
 
@@ -82,6 +82,7 @@ And visualize:
 
 ```{r}
 axgb$plot_pareto_front()
+axgb$plot_parallel_coordinates()
 axgb$plot_opt_result()
 ```
 
@@ -97,7 +98,7 @@ p = axgb$predict(test.task)
 
 
 
-## Scenario 4: Interpretability and Predictive Accuracy
+## Scenario 4: Interpretability,  Predictive Accuracy and Robustness
 
 ```{r}
 axgb = AutoxgboostMC$new(train.task, measures = list(auc, interpnf, robustnoise))
@@ -118,11 +119,13 @@ Additionally, after looking at diagnosis plots, I can determine, that the relati
 As a user usually can not look at all intermediate results, we might also want to learn user preferences from a few ratings given by the user and use this data to extrapolate to unrated models, only querying the user for new ratings once in a while.
 
 
-## Setting Hyperpars:
+
+## Setting Hyperparameters:
 
 ```{r}
 axgb = AutoxgboostMC$new(train.task, measures = list(auc, timepredict))
 axgb$set_hyperpars(list("early_stopping_rounds" = 25L))
+axgb$early_stopping_rounds = 5
 ```
 
 
@@ -229,11 +232,5 @@ Choose a budget, start the process, visualize progress wrt. some measures
 Tab2: Pareto Front
 
 Tab 3: Dataset overview
-
-
-
-
-Architecture:
-
 
 App: Starts / Controls and Visualizes results
