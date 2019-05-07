@@ -4,14 +4,14 @@ test_that("autoxgboostMC works on different tasks for single measure",  {
   tasks = list(
     sonar.task, # binary classification
     iris.fac,   # binary classification with factors
-    iris.task  # multiclass classification
+    iris.task   # multiclass classification
     # subsetTask(bh.task, subset = 1:50)
     )
 
   for (t in tasks) {
     axgb = AutoxgboostMC$new(t)
     expect_class(axgb, "R6")
-    axgb$fit(time_budget = 3L, plot = FALSE)
+    axgb$fit(time_budget = 2L, plot = FALSE)
     expect_class(axgb$opt_result, "MBOSingleObjResult")
     expect_class(axgb$final_learner, "Learner")
     expect_class(axgb$final_model, "WrappedModel")
@@ -25,7 +25,7 @@ test_that("Multiple measures work",  {
     axgb = AutoxgboostMC$new(pid.task, measures = list(acc, fairf11))
     expect_class(axgb, "R6")
     axgb$tune_threshold = FALSE
-    axgb$fit(time_budget = 5L, plot = FALSE)
+    expect_warning(axgb$fit(time_budget = 5L, plot = FALSE))
     expect_class(axgb$opt_result, "MBOResult")
     expect_class(axgb$final_learner, "Learner")
     expect_class(axgb$final_model, "WrappedModel")
@@ -37,8 +37,8 @@ test_that("Multiple measures work",  {
 
 context("Printer")
 test_that("autoxgboost printer works", {
-  mod = AutoxgboostMC$new(train.task, measures = list(auc))
-  mod$fit(time_budget = 3L, plot = FALSE)
+  mod = AutoxgboostMC$new(pid.task, measures = list(auc))
+  expect_warning(mod$fit(time_budget = 3L, plot = FALSE))
   expect_output(print(mod), "Autoxgboost tuning result")
   expect_output(print(mod), "Recommended parameters:")
   expect_output(print(mod), "eta:")

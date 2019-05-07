@@ -107,7 +107,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       self$measures = lapply(measures, self$set_measure_bounds)
       private$.parset = coalesce(parset, autoxgboostMC::autoxgbparset)
       private$.nthread = assert_integerish(nthread, lower = 1, len = 1L, null.ok = TRUE)
-      private$.logger = log4r::logger()
+      private$.logger = log4r::logger(threshold = "WARN")
 
       private$baselearner = self$make_baselearner()
       transf_tasks = self$build_transform_pipeline()
