@@ -36,6 +36,7 @@ task_train = subsetTask(pid.task, subset = train)
 task_test = subsetTask(pid.task, subset = !train)
 ```
 
+# Training and Testing
 Then we start the AutoML process:
 
 ```r
@@ -46,18 +47,37 @@ axgb$nthread(2L)
 # Fit for 5 seconds
 axgb$fit(time_budget = 15L)
 ```
+after searching and finding a good model, we can use the best model to predict.
 
+```r
 
-```{r}
-# Afterwards we can predict
 p = axgb$predict(task_test)
 ```
 
+## Visualizing the Process
 
 ```r
-axgb$model$plot_opt_result()
-axgb$model$plot_pareto_front()
+axgb$plot_opt_path()
+axgb$plot_opt_result()
+axgb$plot_pareto_front()
 ```
+
+
+## Pipeline
+
+AutoxgboostMC currently searches and optimizes the following Pipeline:
+
+```
+fix_factors %>% impact_encoding | dummy encoding %>% drop_constant_feats %>% learner %>% tune_threshold
+```
+
+To be added:
+- Categorical Encoding using mixed models
+- Imputation
+
+Eventually:
+- Ensemble Stacking
+- Model Compression
 
 # autoxgboost - How to Cite
 
