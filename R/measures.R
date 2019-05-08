@@ -167,7 +167,36 @@ interpnf = mlr::makeMeasure(id = "interp.nfeat", minimize = TRUE, properties = c
   return(imeasure$n_features)
   }
 )
-
+#' Number of features via noise injection
+#'
+#' Injects noise into each column of the prediction data.
+#' This is done as follows:
+#' For `numeric` features we add rnorm(0, diff(range(x)) * eps)
+#' For `factors` we randomly flip eps % to a randomly selected factor level.
+#' The predictions on original data and on corrupted data are then compared using
+#' accuracy as a measure.
+#' This corruption process is iterated for every feature and averaged.
+#' @param eps [`numeric(1)`]\cr
+#'   Magnitude of injected noise. Default: 0.01
+#' @param n [`integer(1)`]\cr
+#'   Repliactions for the corruption process. Results are averaged. Default: 1L.
+#' @export
+interpnf2 = mlr::makeMeasure(id = "interp.nfeat2", minimize = TRUE, properties = c("classif", "response", "req.task", "req.model"),
+  extra.args = list(eps = 0.7, n = 1L), best = 0, worst = 1,
+  fun = function(task, model, pred, feats, extra.args) {
+    eps = assert_numeric(extra.args$eps)
+    reps = assert_integerish(extra.args$n)
+    # Repeat n times for robustness.
+    res = vnapply(seq_len(extra.args$n), function(i) {
+      perfeat_res = vnapply(seq_len(getTaskNFeats(task)), function(feature) {
+        noise_pred = predict(model, newdata = inject_noise_single_feature(task, feature, eps))
+        mean(pred$data$response == noise_pred$data$response, na.rm = TRUE)
+      })
+      sum(perfeat_res == 1)
+    })
+    mean(res)
+  }
+)
 
 ### Robustness Measures:
 

@@ -26,7 +26,7 @@ test_that("autoxgboostMC works on different tasks for single measure",  {
   }
 })
 
-context("Mutlicrit")
+context("Multicrit")
 test_that("Multiple measures work",  {
   fairf11 = setMeasurePars(fairf1, grouping = function(df) as.factor(df$age > 30))
   axgb = AutoxgboostMC$new(pid.task, measures = list(acc, fairf11))

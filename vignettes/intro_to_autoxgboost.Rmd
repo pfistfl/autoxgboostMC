@@ -98,16 +98,12 @@ p = axgb$predict(test.task)
 
 
 
-## Scenario 4: Interpretability,  Predictive Accuracy and Robustness
+## Scenario 4: Interpretability, Predictive Accuracy and Robustness
 
 ```{r}
-axgb = AutoxgboostMC$new(train.task, measures = list(auc, interpnf, robustnoise))
+axgb = AutoxgboostMC$new(train.task, measures = list(auc, interpnf2, robustnoise))
 axgb$fit(time_budget = 15L)
 p = axgb$predict(iris.task)
-
-axgb$optim.result$pareto.front
-axgb$optim.result$pareto.set
-axgb$optim.result$pareto.inds
 ```
 
 ## Scenario 5: Optimizing a subjective measure.
@@ -124,7 +120,9 @@ As a user usually can not look at all intermediate results, we might also want t
 
 ```{r}
 axgb = AutoxgboostMC$new(train.task, measures = list(auc, timepredict))
+# Either via setter function
 axgb$set_hyperpars(list("early_stopping_rounds" = 25L))
+# Or active bindings
 axgb$early_stopping_rounds = 5
 ```
 
@@ -226,11 +224,12 @@ Prediction and training speed can be measured from within mlr using `timepredict
 
 ## FIXME: UI Design Speccs
 
+App: Starts / Controls AutoML Process and Visualizes results
+
 Tab1: AutoML Process:
 Choose a budget, start the process, visualize progress wrt. some measures
 
-Tab2: Pareto Front
+
+Tab2: Pareto Front + Select range for measures + Select importance of measures.
 
 Tab 3: Dataset overview
-
-App: Starts / Controls and Visualizes results
