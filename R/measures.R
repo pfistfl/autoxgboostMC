@@ -152,7 +152,8 @@ interpias = mlr::makeMeasure(id = "interp.ias", minimize = TRUE, properties = c(
 #' See `?interpretability_measures` for additonal info
 #' For more info see Molnar et al., 2019 https://arxiv.org/abs/1904.03867
 #' @export
-interpnf = mlr::makeMeasure(id = "interp.nfeat", minimize = TRUE, properties = c("classif", "response", "req.task", "req.model"),
+interpnf = mlr::makeMeasure(id = "interp.nfeat", minimize = TRUE,
+  properties = c("classif", "response", "req.task", "req.model", "classif.multi"),
   extra.args = list(grid.size = 10, max_seg_cat = 5, max_seg_num = 5, epsilon = 0.05), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
     grid.size = assert_integerish(extra.args$grid.size)
@@ -178,7 +179,8 @@ interpnf = mlr::makeMeasure(id = "interp.nfeat", minimize = TRUE, properties = c
 #' @param n [`integer(1)`]\cr
 #'   Repliactions for the corruption process. Results are averaged. Default: 1L.
 #' @export
-interpnf2 = mlr::makeMeasure(id = "interp.nfeat2", minimize = TRUE, properties = c("classif", "response", "req.task", "req.model"),
+interpnf2 = mlr::makeMeasure(id = "interp.nfeat2", minimize = TRUE,
+  properties = c("classif", "response", "req.task", "req.model", "classif.multi"),
   extra.args = list(eps = 0.7, n = 1L), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
     eps = assert_numeric(extra.args$eps)
@@ -224,7 +226,8 @@ NULL
 #' @param n [`integer(1)`]\cr
 #'   Repliactions for the corruption process. Results are averaged. Default: 1L.
 #' @export
-robustnoise = mlr::makeMeasure(id = "robustness.noise", minimize = FALSE, properties = c("classif", "response", "req.task", "req.model"),
+robustnoise = mlr::makeMeasure(id = "robustness.noise", minimize = FALSE,
+  properties = c("classif", "response", "req.task", "req.model", "classif.multi"),
   extra.args = list(eps = 0.01, n = 5L), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
     eps = assert_numeric(extra.args$eps)
@@ -252,7 +255,8 @@ robustnoise = mlr::makeMeasure(id = "robustness.noise", minimize = FALSE, proper
 #' @param n [`integer(1)`]\cr
 #'   Repliactions for the corruption process. Results are averaged. Default: 1L.
 #' @export
-robustnoiseperfeat = mlr::makeMeasure(id = "robustness.perfeat.noise", minimize = FALSE, properties = c("classif", "response", "req.task", "req.model"),
+robustnoiseperfeat = mlr::makeMeasure(id = "robustness.perfeat.noise", minimize = FALSE,
+  properties = c("classif", "response", "req.task", "req.model", "classif.multi"),
   extra.args = list(eps = 0.01, n = 5L), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
     eps = assert_numeric(extra.args$eps)
@@ -293,7 +297,7 @@ get_grouping = function(task, extra_args, n_levels = NULL) {
 inject_noise_task = function(task, eps = 0.01) {
   feats = getTaskData(task, target.extra = TRUE)$data
   feats = lapply(feats, inject_noise, eps = eps)
-  return(data.frame(do.call("cbind", feats)))
+  return(data.frame(feats))
 }
 
 #' Inject noise into a single feature of a dataset.
@@ -311,8 +315,8 @@ inject_noise = function(x, eps) {
     x = x + rnorm(length(x), 0, diff(range(x)) * eps)
   } else if (is.factor(x)) {
     # For factors we randomly flip eps %
-    flip = sample(c(TRUE, FALSE), length(x), replace = TRUE, prob = c(eps, 1 - eps))
-    x[flip] = sample(x, flip)
+    flip = sample(c(TRUE, FALSE), size = length(x), replace = TRUE, prob = c(eps, 1 - eps))
+    x[flip] = sample(x, sum(flip))
   }
   return(x)
 }
