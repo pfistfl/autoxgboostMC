@@ -23,7 +23,7 @@ We implement those measures the following measures:
 \details{
 Curve Complexity `interpmec` \cr
 Interaction Strength `interpias` \cr
-Number of features `interpnf` \cr
+Number of features `interpnf`, `interpnf2` \cr
 
 The arguments can be controlled via `extra.args` for the aforementioned measures.
 }

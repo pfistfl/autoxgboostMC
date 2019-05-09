@@ -91,7 +91,7 @@ fairppv = mlr::makeMeasure(id = "fairness.ppv", minimize = TRUE, properties = c(
 #'
 #' Curve Complexity `interpmec` \cr
 #' Interaction Strength `interpias` \cr
-#' Number of features `interpnf` \cr
+#' Number of features `interpnf`, `interpnf2` \cr
 #'
 #' The arguments can be controlled via `extra.args` for the aforementioned measures.
 #'
@@ -169,15 +169,12 @@ interpnf = mlr::makeMeasure(id = "interp.nfeat", minimize = TRUE, properties = c
 )
 #' Number of features via noise injection
 #'
-#' Injects noise into each column of the prediction data.
-#' This is done as follows:
-#' For `numeric` features we add rnorm(0, diff(range(x)) * eps)
-#' For `factors` we randomly flip eps % to a randomly selected factor level.
-#' The predictions on original data and on corrupted data are then compared using
-#' accuracy as a measure.
-#' This corruption process is iterated for every feature and averaged.
+#' Creates number of features copies of the prediction data.
+#' For each copy, noise is injected into a single feature.
+#' Then we check how often the prediction changes with respect to the
+#' unmodified data.
 #' @param eps [`numeric(1)`]\cr
-#'   Magnitude of injected noise. Default: 0.01
+#'   Magnitude of injected noise. Default: 0.7
 #' @param n [`integer(1)`]\cr
 #'   Repliactions for the corruption process. Results are averaged. Default: 1L.
 #' @export
