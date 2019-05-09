@@ -41,3 +41,18 @@ Suggests:
     shiny
 RoxygenNote: 6.1.1
 VignetteBuilder: knitr
+Collate: 
+    'helpers.R'
+    'plot_axgb_result.R'
+    'AxgbOptimizer.R'
+    'AutoxgboostMC.R'
+    'RLearner_classif_autoxgboostMC.R'
+    'RLearner_classif_xgboost.custom.R'
+    'RLearner_classif_xgboost.earlystop.R'
+    'RLearner_regr_autoxgboostMC.R'
+    'RLearner_regr_xgboost.custom.R'
+    'RLearner_regr_xgboost.earlystop.R'
+    'Stopwatch.R'
+    'autoxgbparset.R'
+    'measures.R'
+    'zzz.R'

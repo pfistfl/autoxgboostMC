@@ -1,5 +1,9 @@
 #' @title Fit and optimize a xgboost model for multiple criteria
 #'
+#' @include AxgbOptimizer.R
+#' @include plot_axgb_result.R
+#' @include helpers.R
+#'
 #' @description
 #' An xgboost model is optimized based on a set of measures (see [\code{\link[mlr]{Measure}}]).
 #' The bounds of the parameter in which the model is optimized, are defined by \code{\link{autoxgbparset}}.
@@ -81,6 +85,7 @@
 #' # Set hyperparameters:
 #' axgb$tune_threshold = FALSE
 #' }
+
 AutoxgboostMC = R6::R6Class("AutoxgboostMC",
   public = list(
     task = NULL,
@@ -91,8 +96,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
 
     preproc_pipeline = NULL,
     obj_fun = NULL,
-    opt_state = NULL,
-    opt_result = NULL,
+
     optimizer_constructor = AxgbOptimizerSMBO,
     optimizer = NULL,
 
@@ -103,56 +107,22 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       self$task = assert_class(task, "SupervisedTask")
       assert_list(measures, types = "Measure", null.ok = TRUE)
       assert_class(parset, "ParamSet", null.ok = TRUE)
+
       # Set defaults
       measures = coalesce(measures, list(getDefaultMeasure(task)))
-      # names(measures) = self$measure_ids
       self$measures = lapply(measures, self$set_measure_bounds)
-      private$.parset = coalesce(parset, autoxgboostMC::autoxgbparset)
-      private$.nthread = assert_integerish(nthread, lower = 1, len = 1L, null.ok = TRUE)
-      private$.logger = log4r::logger(threshold = "WARN")
-      private$.watch = Stopwatch$new(time_budget, iterations)
 
       private$baselearner = self$make_baselearner()
       transf_tasks = self$build_transform_pipeline()
       private$baselearner = setHyperPars(private$baselearner, early.stopping.data = transf_tasks$task.test)
-      self$obj_fun = self$make_objective_function(transf_tasks)
 
-      self$optimizer = self$optimizer_constructor$new(self$obj_fun, self$parset, private$.logger, private$.watch)
-    },
-    print = function(...) {
-      catf("AutoxgboostMC Learner")
-      catf("Task: %s (%s)", self$task$task.desc$id, self$task$type)
-      catf("Measures: %s", paste0(self$measure_ids, collapse = ","))
-      catf("Trained: %s", ifelse(is.null(self$opt_result), "no", "yes"))
-      if (!is.null(self$opt_result)) {
-        op = self$opt_result$opt.path
-        pars = trafoValue(op$par.set, self$opt_result$x)
-        pars$nrounds = self$get_best_from_opt("nrounds")
-        catf("Autoxgboost tuning result")
-        catf("Recommended parameters:")
-        for (p in names(pars)) {
-          if (p == "nrounds" || isInteger(op$par.set$pars[[p]])) {
-            catf("%s: %i", stringi::stri_pad_left(p, width = 17), as.integer(pars[p]))
-          } else if (isNumeric(op$par.set$pars[[p]], include.int = FALSE)) {
-            catf("%s: %.3f", stringi::stri_pad_left(p, width = 17), pars[p])
-          } else {
-            catf("%s: %s", stringi::stri_pad_left(p, width = 17), pars[p])
-          }
-        }
-        catf("\n\nPreprocessing pipeline:")
-            print(self$preproc_pipeline)
-        # FIXME: Nice Printer for results:
-        catf("\nWith tuning result:")
-        for (i in seq_along(self$measures)) catf("    %s = %.3f", self$measures[[i]]$id, self$opt_result$y[[i]])
-        thr = self$get_best_from_opt(".threshold")
-        if (!is.null(thr)) {
-          if (length(thr) == 1) {
-            catf("\nClassification Threshold: %.3f", thr)
-          } else {
-            catf("\nClassification Thresholds: %s", paste(names(thr), round(thr, 3), sep = ": ", collapse = "; "))
-          }
-        }
-      }
+      private$.nthread = assert_integerish(nthread, lower = 1, len = 1L, null.ok = TRUE)
+      private$.logger = log4r::logger(threshold = "WARN")
+      private$.parset = coalesce(parset, autoxgboostMC::autoxgbparset)
+      self$obj_fun = self$make_objective_function(transf_tasks, private$.parset)
+
+      self$optimizer = self$optimizer_constructor$new(self$measures, self$obj_fun, private$.parset, private$.logger)
+
     },
     fit = function(iterations = 160L, time_budget = 3600L, fit_final_model = TRUE, plot = TRUE) {
       assert_integerish(iterations)
@@ -176,7 +146,15 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       if(is.null(self$final_learner)) self$build_final_learner()
       self$final_model = train(self$final_learner, self$task)
     },
-
+    print = function(...) {
+      catf("AutoxgboostMC Learner")
+      catf("Task: %s (%s)", self$task$task.desc$id, self$task$type)
+      catf("Measures: %s", paste0(self$measure_ids, collapse = ","))
+      catf("Trained: %s", ifelse(is.null(self$opt_result), "no", "yes"))
+      print(self$optimizer)
+      catf("\n\nPreprocessing pipeline:")
+      print(self$preproc_pipeline)
+    },
     # AutoxgboostMC steps
     make_baselearner = function() {
       tt = getTaskType(self$task)
@@ -239,7 +217,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     },
 
     # MBO --------------------------------------------------------------------------------
-    make_objective_function = function(transf_tasks) {
+    make_objective_function = function(transf_tasks, parset) {
       is_thresholded_measure = sapply(self$measures, function(x) {
         props = getMeasureProperties(x)
         any(props == "req.truth") & !any(props == "req.prob")
@@ -256,7 +234,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
           lrn = setHyperPars(private$baselearner, par.vals = x)
           mod = train(lrn, transf_tasks$task.train)
           pred = predict(mod, transf_tasks$task.test)
-          nrounds = self$get_best_iteration(mod)
+          nrounds = get_best_iteration(mod)
           # For now we tune threshold of first applicable measure.
           if (private$.tune_threshold && getTaskType(transf_tasks$task.train) == "classif") {
             tune.res = tuneThreshold(pred = pred, measure = self$measures[is_thresholded_measure][[1]])
@@ -275,7 +253,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
 
           return(res)
         },
-        par.set = private$.parset, noisy = FALSE, has.simple.signature = FALSE, minimize = self$measure_minimize,
+        par.set = parset, noisy = FALSE, has.simple.signature = FALSE, minimize = self$measure_minimize,
         n.objectives = length(self$measures)
       )
     },
@@ -311,30 +289,33 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       lapply(names(par_vals), function(x) self[[x]] = par_vals[[x]])
       invisible(self)
     },
+    plot_pareto_front = plot_pareto_front,
+    plot_parallel_coordinates = plot_parallel_coordinates,
+    plot_opt_result = function() {self$optimizer$plot_opt_result()},
+    plot_opt_path = function() {self$optimizer$plot_opt_path()},
     ## Getters
     # Get best value from optimization result
     # @param what [`character(1)`]: "nrounds" or ".threshold"
     get_best_from_opt = function(what) {
-      self$opt_result$opt.path$env$extra[[self$get_best_ind(self$opt_result)]][[what]]
+      self$optimizer$get_best(what)
     },
-    # Get the iteration parameter of a fitted xboost model with early stopping
-    get_best_iteration = function(mod) {
-      getLearnerModel(mod, more.unwrap = TRUE)$best_iteration
-    },
-    get_best_ind = function(opt_result) {
-      if (self$early_stopping_measure$minimize) {
-        best.ind = which.min(opt_result$opt.path$env$path[[self$early_stopping_measure$id]])
-      } else {
-        best.ind = which.max(opt_result$opt.path$env$path[[self$early_stopping_measure$id]])
-      }
-      return(best.ind)
-    },
-    get_opt_path_df = function() {
-      as.data.frame(mlrMBO:::getOptStateOptPath(self$opt_state))
-    },
+    get_opt_path_df = function() {self$optimizer$get_opt_path_df()}
   ),
 
   active = list(
+    # AB for optimizer --------------------------------------------------------------------
+    opt_path = function() {self$optimizer$opt_path},
+    opt_result = function() {self$optimizer$opt_result},
+    parset = function(value) {
+      if (missing(value)) {
+        return(private$.parset)
+      } else {
+        # FIXME: We set the Parset at two positions. This is suboptimal
+        private$.parset = assert_class(value, "ParamSet", null.ok = TRUE)
+        self$optimizer$parset = assert_class(value, "ParamSet", null.ok = TRUE)
+        return(self)
+      }
+    },
     early_stopping_measure = function(value) {
       if (missing(value)) {
         self$measures[[1]]
@@ -420,16 +401,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         return(self)
       }
     },
-    watch = function() {private$.watch},
-    # MBO Hyperparameters
-    parset = function(value) {
-      if (missing(value)) {
-        return(self$otimizer$parset)
-      } else {
-        self$otimizer$parset = assert_class(value, "ParamSet", null.ok = TRUE)
-        return(self)
-      }
-    }
+    watch = function() {private$.watch}
   ),
   private = list(
     # Hyperparameters
@@ -442,6 +414,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     .resample_instance = NULL,
     .logger = NULL,
     .watch = NULL,
-    baselearner = NULL
+    baselearner = NULL,
+    .parset = NULL
   )
 )

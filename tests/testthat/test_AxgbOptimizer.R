@@ -1,0 +1,30 @@
+context("AxgbOptimizer")
+test_that("Can be instantiated",  {
+  measures = list(auc)
+  logger = log4r::logger()
+  parset = makeParamSet(makeNumericParam("x", lower = 0, upper = 1))
+  fn = smoof::makeMultiObjectiveFunction(n.objectives=1L, fn = function(x) {x}, par.set=parset)
+  opt = AxgbOptimizerSMBO$new(measures, fn, parset, logger)
+  expect_r6(opt)
+  expect_class(opt, "AxgbOptimizerSMBO")
+  expect_true(opt$n_objectives == 1L)
+  expect_class(opt$parset, "ParamSet")
+  expect_true(opt$measure_ids == "auc")
+})
+
+context("AxgbOptimizer")
+test_that("Can be instantiated",  {
+  measures = list(auc, acc)
+  logger = log4r::logger()
+  parset = makeParamSet(
+    makeNumericParam("x", lower = 0, upper = 1),
+    makeNumericParam("y", lower = 0, upper = 1)
+  )
+  fn = smoof::makeMultiObjectiveFunction(n.objectives=2L, fn = function(x) {x}, par.set=parset)
+  opt = AxgbOptimizerSMBO$new(measures, fn, parset, logger)
+  expect_r6(opt)
+  expect_class(opt, "AxgbOptimizerSMBO")
+  expect_true(opt$n_objectives == 2L)
+  expect_class(opt$parset, "ParamSet")
+  expect_true(all(opt$measure_ids == c("auc", "acc")))
+})

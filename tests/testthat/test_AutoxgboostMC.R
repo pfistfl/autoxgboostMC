@@ -48,7 +48,7 @@ context("Printer")
 test_that("autoxgboost printer works", {
   expect_warning(mod <- AutoxgboostMC$new(pid.task, measures = list(auc)))
   suppressWarnings(mod$fit(time_budget = 6L, plot = FALSE))
-  expect_output(print(mod), "Autoxgboost tuning result")
+  expect_output(print(mod), "AutoxgboostMC tuning result")
   expect_output(print(mod), "Recommended parameters:")
   expect_output(print(mod), "eta:")
   expect_output(print(mod), "gamma:")

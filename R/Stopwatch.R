@@ -37,7 +37,7 @@ Stopwatch = R6::R6Class("Stopwatch",
     },
     start = function() {
       self$start_time = Sys.time()
-      self$current_iter = 0L,
+      self$current_iter = 0L
     },
     reset = function() {
       self$start()

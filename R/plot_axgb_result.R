@@ -29,12 +29,7 @@ plot_pareto_front = function(x = NULL, y = NULL, color = NULL, plotly = FALSE) {
   else p
 }
 
-
-plot_opt_result = function() {
-  plot(self$opt_result)
-}
-
-
+#' Optimization path
 plot_opt_path = function() {
   opt_df = self$get_opt_path_df()
   opt_df$iter = seq_len(nrow(opt_df))
@@ -60,7 +55,7 @@ plot_parallel_coordinates = function(trim = 20L) {
   opt_df = self$get_opt_path_df()
   opt_df = opt_df[opt_df[, self$early_stopping_measure$id] >= sort(opt_df[, self$early_stopping_measure$id], decreasing = TRUE)[min(trim, nrow(opt_df))],]
   # Drop 2nd lambda (MBO param)
-  opt_df = opt_df[, -rev(which(colnames(opt_df) == "lambda"))[1]]
+  # opt_df = opt_df[, -rev(which(colnames(opt_df) == "lambda"))[1]]
   pars = c(names(self$parset$pars), self$measure_ids)
   opt_df = opt_df[, pars]
   par_range = sapply(opt_df[, pars], range)

@@ -57,7 +57,7 @@ If we are not satisfied, we can continue the search process for more iterations:
 
 ```{r}
 axgb$fit(time_budget = 5L)
-```
+tra```
 
 And then use the resulting model to predcit on our test data.
 
