@@ -46,6 +46,7 @@ test_that("Robustness measures",  {
   expect_class(prd, "Prediction")
   perf = performance(prd, interpnf2, task = task, model = mod)
   expect_integerish(perf, lower = 0, upper = Inf)
+
   #   lrn = makeLearner("classif.rpart", predict.type = "prob")
   #   task = subsetTask(pid.task, subset = sample(c(1:100, 500:600)), features = 1:2)
   #   mod = train(lrn, task)
