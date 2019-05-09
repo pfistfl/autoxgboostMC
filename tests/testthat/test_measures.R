@@ -19,14 +19,21 @@ test_that("Fairness measures work",  {
 
 context("Robustness")
 test_that("Robustness measures",  {
-  lrn = makeLearner("classif.rpart")
-  mod = train(lrn, pid.task)
-  prd = predict(mod, pid.task)
-  expect_class(prd, "Prediction")
-  perf = performance(prd, robustnoise, task = pid.task, model = mod)
-  expect_numeric(perf, lower = 0, upper = 1)
-  perf = performance(prd, robustnoiseperfeat, task = pid.task, model = mod)
-  expect_numeric(perf, lower = 0, upper = 1)
+  tasks = list(
+  sonar.task, # binary classification
+  iris.fac,   # binary classification with factors
+  iris.task   # multiclass classification
+  )
+  for (t in tasks) {
+    lrn = makeLearner("classif.rpart")
+    mod = train(lrn, t)
+    prd = predict(mod, t)
+    expect_class(prd, "Prediction")
+    perf = performance(prd, robustnoise, task = t, model = mod)
+    expect_numeric(perf, lower = 0, upper = 1)
+    perf = performance(prd, robustnoiseperfeat, task = t, model = mod)
+    expect_numeric(perf, lower = 0, upper = 1)
+  }
 })
 
 # FIXME: Include this when measures are faster.
