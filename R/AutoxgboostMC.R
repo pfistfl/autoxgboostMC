@@ -1,6 +1,7 @@
 #' @title Fit and optimize a xgboost model for multiple criteria
 #'
 #' @include AxgbOptimizer.R
+#' @include AxgbPipelineBuilder.R
 #' @include plot_axgb_result.R
 #' @include helpers.R
 #'
@@ -94,9 +95,10 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     iterations = NULL,
     time_budget = NULL,
 
-    preproc_pipeline = NULL,
     obj_fun = NULL,
 
+    pipeline_builder_constructor = AxgbPipelineBuilderXGB,
+    pipeline_builder = NULL,
     optimizer_constructor = AxgbOptimizerSMBO,
     optimizer = NULL,
 
@@ -111,15 +113,15 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       # Set defaults
       measures = coalesce(measures, list(getDefaultMeasure(task)))
       self$measures = lapply(measures, self$set_measure_bounds)
-
-      private$baselearner = self$make_baselearner()
-      transf_tasks = self$build_transform_pipeline()
-      private$baselearner = setHyperPars(private$baselearner, early.stopping.data = transf_tasks$task.test)
-
-      private$.nthread = assert_integerish(nthread, lower = 1, len = 1L, null.ok = TRUE)
-      private$.logger = log4r::logger(threshold = "WARN")
       private$.parset = coalesce(parset, autoxgboostMC::autoxgbparset)
-      self$obj_fun = self$make_objective_function(transf_tasks, private$.parset)
+
+      private$.logger = log4r::logger(threshold = "WARN")
+
+      self$pipeline_builder = self$pipeline_builder_constructor$new(logger = private$.logger)
+      transf_tasks = self$pipeline_builder$build_transform_pipeline(self$task)
+      private$baselearner = self$pipeline_builder$make_baselearner(self$task, self$measures, nthread, !self$early_stopping_measure$minimize)
+
+      self$obj_fun = self$make_objective_function(transf_tasks, private$.parset, self$pipeline_builder$tune_threshold)
 
       self$optimizer = self$optimizer_constructor$new(self$measures, self$obj_fun, private$.parset, private$.logger)
 
@@ -142,10 +144,6 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       if(is.null(self$final_model)) stop("Final model not fitted, use .$fit_final_model() to fit!")
       predict(self$final_model, newdata)
     },
-    fit_final_model = function() {
-      if(is.null(self$final_learner)) self$build_final_learner()
-      self$final_model = train(self$final_learner, self$task)
-    },
     print = function(...) {
       catf("AutoxgboostMC Learner")
       catf("Task: %s (%s)", self$task$task.desc$id, self$task$type)
@@ -153,79 +151,19 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       catf("Trained: %s", ifelse(is.null(self$opt_result), "no", "yes"))
       print(self$optimizer)
       catf("\n\nPreprocessing pipeline:")
-      print(self$preproc_pipeline)
-    },
-    # AutoxgboostMC steps
-    make_baselearner = function() {
-      tt = getTaskType(self$task)
-      td = getTaskDesc(self$task)
-      req_prob_measure = sapply(self$measures, function(x) {
-        any(getMeasureProperties(x) == "req.prob")
-      })
-
-      pv = list()
-      if (!is.null(self$nthread)) pv$nthread = self$nthread
-
-      if (tt == "classif") {
-        predict.type = ifelse(any(req_prob_measure) | private$.tune_threshold, "prob", "response")
-        if(length(td$class.levels) == 2) {
-          objective = "binary:logistic"
-          eval_metric = "error"
-          parset = c(self$parset, makeParamSet(makeNumericParam("scale_pos_weight", lower = -10, upper = 10, trafo = function(x) 2^x)))
-        } else {
-          objective = "multi:softprob"
-          eval_metric = "merror"
-        }
-        baselearner = makeLearner("classif.xgboost.earlystop", id = "classif.xgboost.earlystop",
-          predict.type = predict.type, eval_metric = eval_metric, objective = objective,
-          early_stopping_rounds = private$.early_stopping_rounds, maximize = !self$early_stopping_measure$minimize,
-          max.nrounds = private$.max_nrounds, par.vals = pv)
-
-      } else if (tt == "regr") {
-        predict.type = NULL
-        objective = "reg:linear"
-        eval_metric = "rmse"
-        baselearner = makeLearner("regr.xgboost.earlystop", id = "regr.xgboost.earlystop",
-          eval_metric = eval_metric, objective = objective, early_stopping_rounds = private$.early_stopping_rounds,
-          maximize = !self$early_stopping_measure$minimize, max.nrounds = private$.max_nrounds, par.vals = pv)
-      } else {
-        stop("Task must be regression or classification")
-      }
-      return(baselearner)
-    },
-
-    # Build pipeline
-    build_transform_pipeline = function() {
-      has.cat.feats = sum(getTaskDesc(self$task)$n.feat[c("factors", "ordered")]) > 0
-      self$preproc_pipeline = NULLCPO
-      if (has.cat.feats) {
-        self$preproc_pipeline %<>>% generateCatFeatPipeline(self$task, private$.impact_encoding_boundary)
-      }
-      self$preproc_pipeline %<>>% cpoDropConstants()
-
-      # process data and apply pipeline
-      # split early stopping data
-      if (is.null(private$.resample_instance))
-        private$.resample_instance = makeResampleInstance(makeResampleDesc("Holdout", split = private$.early_stopping_fraction), self$task)
-
-      task.test =  subsetTask(self$task, private$.resample_instance$test.inds[[1]])
-      task.train = subsetTask(self$task, private$.resample_instance$train.inds[[1]])
-
-      task.train %<>>% self$preproc_pipeline
-      task.test %<>>% retrafo(task.train)
-      return(list(task.train = task.train, task.test = task.test))
+      print(self$pipeline_builder$preproc_pipeline)
     },
 
     # MBO --------------------------------------------------------------------------------
-    make_objective_function = function(transf_tasks, parset) {
+    make_objective_function = function(transf_tasks, parset, tune_threshold) {
       is_thresholded_measure = sapply(self$measures, function(x) {
         props = getMeasureProperties(x)
         any(props == "req.truth") & !any(props == "req.prob")
       })
-      if (!any(is_thresholded_measure) & private$.tune_threshold) {
+      if (!any(is_thresholded_measure) & tune_threshold) {
         warning("Threshold tuning is active, but no measure for tuning thresholds!
           Deactivating threshold tuning!")
-        private$.tune_threshold = FALSE
+        tune_threshold = FALSE
       }
 
       smoof::makeMultiObjectiveFunction(name = "optimizeWrapperMultiCrit",
@@ -236,7 +174,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
           pred = predict(mod, transf_tasks$task.test)
           nrounds = get_best_iteration(mod)
           # For now we tune threshold of first applicable measure.
-          if (private$.tune_threshold && getTaskType(transf_tasks$task.train) == "classif") {
+          if (tune_threshold && getTaskType(transf_tasks$task.train) == "classif") {
             tune.res = tuneThreshold(pred = pred, measure = self$measures[is_thresholded_measure][[1]])
 
             if (length(self$measures[-which(is_thresholded_measure)[1]]) > 0) {
@@ -271,8 +209,12 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         lrn = makeLearner("regr.xgboost.custom", nrounds = nrounds, objective = objective)
       }
       lrn = setHyperPars2(lrn, par.vals = pars)
-      lrn = self$preproc_pipeline %>>% lrn
+      lrn = self$pipeline_builder$preproc_pipeline %>>% lrn
       return(lrn)
+    },
+    fit_final_model = function() {
+      if(is.null(self$final_learner)) self$build_final_learner()
+      self$final_model = train(self$final_learner, self$task)
     },
 
     ## Setters for various hyperparameters -----------------------------------------------
@@ -336,60 +278,60 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       sapply(self$measures, function(x) x$minimize)
     },
 
-    # Hyperparameters --------------------------------------------------------------------
+    # Hyperparameters for the Pipeline Builder Class -------------------------------------
     max_nrounds = function(value) {
       if (missing(value)) {
-        return(private$.max_nrounds)
+        return(self$pipeline_builder$max_nrounds)
       } else {
-        private$.max_nrounds = assert_integerish(value, lower = 1L, len = 1L)
+        self$pipeline_builder$max_nrounds = assert_integerish(value, lower = 1L, len = 1L)
         return(self)
       }
     },
     early_stopping_rounds = function(value) {
       if (missing(value)) {
-        return(private$.early_stopping_rounds)
+        return(self$pipeline_builder$early_stopping_rounds)
       } else {
-        private$.early_stopping_rounds = assert_integerish(value, lower = 1L, len = 1L)
+        self$pipeline_builder$early_stopping_rounds = assert_integerish(value, lower = 1L, len = 1L)
         return(self)
       }
     },
     early_stopping_fraction = function(value) {
       if (missing(value)) {
-        return(private$.early_stopping_fraction)
+        return(self$pipeline_builder$early_stopping_fraction)
       } else {
-        private$.early_stopping_fraction = assert_numeric(value, lower = 0, upper = 1, len = 1L)
+        self$pipeline_builder$early_stopping_fraction = assert_numeric(value, lower = 0, upper = 1, len = 1L)
         return(self)
       }
     },
     impact_encoding_boundary = function(value) {
       if (missing(value)) {
-        return(private$.impact_encoding_boundary)
+        return(self$pipeline_builder$impact_encoding_boundary)
       } else {
-        private$.impact_encoding_boundary = assert_numeric(value, lower = 0, upper = 1, len = 1L)
+        self$pipeline_builder$impact_encoding_boundary = assert_integerish(value, lower = 1L, len = 1L)
         return(self)
       }
     },
     tune_threshold = function(value) {
       if (missing(value)) {
-        return(private$.tune_threshold)
+        return(self$pipeline_builder$tune_threshold)
       } else {
-        private$.tune_threshold = assert_flag(value)
+        self$pipeline_builder$tune_threshold = assert_flag(value)
         return(self)
       }
     },
     nthread = function(value) {
       if (missing(value)) {
-        return(private$.nthread)
+        return(self$pipeline_builder$nthread)
       } else {
-        self$nthread = assert_integerish(value, lower = 1, len = 1L, null.ok = TRUE)
+        self$pipeline_builder$nthread = assert_integerish(value, lower = 1, len = 1L, null.ok = TRUE)
         return(self)
       }
     },
     resample_instance = function(value) {
       if (missing(value)) {
-        return(private$.resample_instance)
+        return(self$pipeline_builder$resample_instance)
       } else {
-        private$.resample_instance = assert_class(value, "ResampleInstance", null.ok = TRUE)
+        self$pipeline_builder$resample_instance = assert_class(value, "ResampleInstance", null.ok = TRUE)
         return(self)
       }
     },
@@ -397,20 +339,17 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         if (missing(value)) {
         return(private$.logger)
       } else {
-        private$.logger = assert_class(value, "logger")
+        assert_class(value, "logger")
+        # Push the logger to all fields
+        private$.logger = value
+        self$pipeline_builder$logger = value
+        self$optimizer$logger = value
         return(self)
       }
     },
     watch = function() {private$.watch}
   ),
   private = list(
-    # Hyperparameters
-    .max_nrounds = 3*10^3L,
-    .early_stopping_rounds = 20L,
-    .early_stopping_fraction = 4/5,
-    .impact_encoding_boundary = 10L,
-    .tune_threshold = TRUE,
-    .nthread = NULL,
     .resample_instance = NULL,
     .logger = NULL,
     .watch = NULL,

@@ -44,6 +44,7 @@ VignetteBuilder: knitr
 Collate: 
     'helpers.R'
     'plot_axgb_result.R'
+    'AxgbPipelineBuilder.R'
     'AxgbOptimizer.R'
     'AutoxgboostMC.R'
     'RLearner_classif_autoxgboostMC.R'
