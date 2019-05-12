@@ -11,6 +11,7 @@
 
     ```splus
     # Install requirements
+    install.packages("devtools")
     devtools::install_github("compstat-lmu/paper_2019_iml_measures")
     devtools::install_github("johnmyleswhite/log4r")
     devtools::install_github("mlr-org/mlrMBO")
