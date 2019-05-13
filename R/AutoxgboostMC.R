@@ -232,6 +232,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       invisible(self)
     },
     plot_pareto_front = plot_pareto_front,
+    plot_pareto_front_projections = plot_pareto_front_projections,
     plot_parallel_coordinates = plot_parallel_coordinates,
     plot_opt_result = function() {self$optimizer$plot_opt_result()},
     plot_opt_path = function() {self$optimizer$plot_opt_path()},

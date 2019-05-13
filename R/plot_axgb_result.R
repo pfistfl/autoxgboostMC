@@ -1,38 +1,78 @@
-plot_pareto_front = function(x = NULL, y = NULL, color = NULL, plotly = FALSE) {
+#' Nonconvex pareto front
+plot_pareto_front = function(x = NULL, y = NULL, plotly = FALSE) {
   assert(self$is_multicrit)
+  assert_flag(plotly)
   df = self$get_opt_path_df()
   # Drop 2nd lambda (MBO param)
   df = df[, -rev(which(colnames(df) == "lambda"))[1]]
   assert_choice(x, self$measure_ids, null.ok = TRUE)
   assert_choice(y, self$measure_ids, null.ok = TRUE)
-  assert_choice(color, colnames(df), null.ok = TRUE)
   if (is.null(x)) x = self$measure_ids[1]
   if (is.null(y) & length(self$measures) >= 2L) y = self$measure_ids[2]
-
-  # Plot pareto front
-  # FIXME: Code here could be more beautiful
-  df$on_front = seq_len(nrow(df)) %in% self$opt_result$pareto.inds
-  front_data = df[df$on_front, c(x, y)]
-  front_data = front_data[order(front_data[[x]]), ]
-  front_line = data.frame(front_data[[x]][-nrow(front_data)], front_data[[y]][-1])
-  colnames(front_line) = colnames(front_data)
-  front_line = rbind(front_data, front_line)
-  front_line = front_line[order(front_line[[x]]), ]
-
-  p = ggplot2::ggplot(df, ggplot2::aes_string(x = x, y = y, color = color)) +
-  ggplot2::geom_path(data = front_line, ggplot2::aes_string(x = x, y = y), alpha = 0.7, color = "darkgrey", size = 1) +
-  ggplot2::geom_point(ggplot2::aes(alpha = on_front, color = on_front), size = 1.5) +
-  ggplot2::theme_bw() +
-  ggplot2::guides(color = FALSE, alpha = FALSE) +
-  ggplot2::scale_color_manual(values = c("red", "black")) +
-  ggplot2::scale_alpha_manual(values= c(1, 0.6))
-
   measures = setNames(self$measures, self$measure_ids)
+
+  front_data = as.data.frame(getOptPathParetoFront(mlrMBO:::getOptStateOptPath(self$optimizer$opt_state)))
+  front = get_pareto_data_nonconvex(front_data, x, y, measures[[x]]$minimize)
+
+  p = ggplot2::ggplot(df, ggplot2::aes_string(x = x, y = y)) +
+  ggplot2::geom_point(size = 1.5, alpha = 0.6, color = "red") +
+  ggplot2::geom_path(data = front$line, ggplot2::aes_string(x = x, y = y), alpha = 0.7, color = "darkgrey", size = 1) +
+  ggplot2::geom_point(data = front$points, alpha = 0.9, size = 1.5, color = "black") +
+  ggplot2::theme_bw()
+
   if (!measures[[x]]$minimize) {p = p + ggplot2::scale_x_reverse()}
   if (!measures[[y]]$minimize) {p = p + ggplot2::scale_y_reverse()}
   if (plotly) plotly::ggplotly(p)
   else p
 }
+
+#' Nonconvex pareto front for a given weight range (limiting random projections).
+plot_pareto_front_projections = function(x = NULL, y = NULL, wt_range = c(0, 1), plotly = FALSE) {
+
+  assert_choice(x, self$measure_ids, null.ok = TRUE)
+  assert_choice(y, self$measure_ids, null.ok = TRUE)
+  assert_numeric(wt_range, lower = 0, upper = 1, len = 2L)
+  assert_flag(plotly)
+  if (sum(wt_range) == 0) error("At least 1 element of wt_range must be > 0!")
+  if (is.null(x)) x = self$measure_ids[1]
+  if (is.null(y) & length(self$measures) >= 2L) y = self$measure_ids[2]
+
+
+  measures = setNames(self$measures, self$measure_ids)
+  minimize = vlapply(measures[c(x, y)], function(x) x$minimize)
+
+  front_data = as.data.frame(getOptPathParetoFront(mlrMBO:::getOptStateOptPath(self$optimizer$opt_state)))
+  df = get_pareto_data_nonconvex(front_data, x, y, measures[[x]]$minimize)
+  best_points = viapply(wt_range, function(wt) {
+    wt = c(wt, 1 - wt)
+    wt[!minimize] = - wt[!minimize]
+    best = which.min(df$points[, x] * wt[1] + df$points[, y] * wt[2])
+  })
+
+  df_focus = get_pareto_data_nonconvex(df$points[seq(from = best_points[1], to = best_points[2]), ],
+    x, y, measures[[x]]$minimize)
+
+  p = self$plot_pareto_front(x, y, plotly) +
+    geom_point(data = df_focus$points, aes_string(x = x, y = y), color = "blue", shape = 16L, size = 3L, alpha = 0.8) +
+    geom_path(data = df_focus$line, aes_string(x = x, y = y), color = "blue", size = 1.5, alpha = .6)
+  if (plotly) plotly::ggplotly(p)
+  else p
+}
+
+get_pareto_data_nonconvex = function(front_data, x, y, x_minimize) {
+  # Make sure data is sorted
+  front_data = front_data[order(front_data[[x]]), c(x, y)]
+
+  # FIXME: This should work for all combinations of measure$minimize
+  front_line = data.frame(front_data[[x]][-nrow(front_data)], front_data[[y]][-1])
+  colnames(front_line) = colnames(front_data)
+  front_line = rbind(front_data, front_line)
+  front_line = front_line[order(front_line[[x]], decreasing = x_minimize), ]
+  rownames(front_line) = NULL
+  return(list(points = front_data, line = front_line))
+}
+
+
 
 #' Optimization path
 plot_opt_path = function() {
@@ -53,9 +93,11 @@ plot_opt_path = function() {
   print(p)
 }
 
+#' Parallel Coordinates Plot
+plot_parallel_coordinates = function(trim = 20L, plotly = FALSE) {
+  assert_flag(plotly)
+  assert_integer(tim)
 
-
-plot_parallel_coordinates = function(trim = 20L) {
   requirePackages("tidyr")
   opt_df = self$get_opt_path_df()
   opt_df = opt_df[opt_df[, self$early_stopping_measure$id] >= sort(opt_df[, self$early_stopping_measure$id], decreasing = TRUE)[min(trim, nrow(opt_df))],]
@@ -99,6 +141,11 @@ plot_parallel_coordinates = function(trim = 20L) {
     ) +
     ggplot2::ylab("") + ggplot2::xlab("")
 
-  gg = plotly::ggplotly(p, tooltip = "text")
-  plotly::highlight(gg, dynamic = TRUE)
+  if (plotly) {
+    gg = plotly::ggplotly(p, tooltip = "text")
+    plotly::highlight(gg, dynamic = TRUE)
+    gg
+  } else {
+    p
+  }
 }
