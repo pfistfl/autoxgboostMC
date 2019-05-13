@@ -38,10 +38,11 @@ Suggests:
     plotly,
     rmarkdown,
     testthat,
-    shiny
+    shiny,
+    vctrs
 RoxygenNote: 6.1.1
 VignetteBuilder: knitr
-Collate: 
+Collate:
     'helpers.R'
     'plot_axgb_result.R'
     'AxgbPipelineBuilder.R'

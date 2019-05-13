@@ -19,8 +19,8 @@ knitr::opts_chunk$set(
 
 
 ```{r}
-library(devtools)
-load_all()
+library(mlr)
+library(autoxgboostMC)
 
 # Split into train and test data set.
 train.idx = sample(seq_len(768), 506)
@@ -83,7 +83,7 @@ axgb$final_model
 
 ```{r}
 axgb = AutoxgboostMC$new(train.task, measures = list(auc, timetrain))
-axgb$fit(time_budget = 15L)
+axgb$fit(time_budget = 25L)
 ```
 
 And visualize:
@@ -99,9 +99,9 @@ axgb$plot_opt_result()
 Set weight ranges for `parEGO`.
 
 ```{r}
-axgb$plot_pareto_front_projections(wt_range = c(0, 0.1))
-axgb$plot_pareto_front_projections(wt_range = c(0.1, 0.8))
-axgb$plot_pareto_front_projections(wt_range = c(0.9, 1))
+axgb$plot_pareto_front_projections(wt_range = c(0.0, 0.1))
+axgb$plot_pareto_front_projections(wt_range = c(0.8, 0.8))
+axgb$plot_pareto_front_projections(wt_range = c(0.8, 1))
 ```
 
 ## Scenario 3: Predictive Accuracy and Fairness
