@@ -10,12 +10,17 @@ plot_pareto_front = function(x = NULL, y = NULL, color = NULL, plotly = FALSE) {
   if (is.null(y) & length(self$measures) >= 2L) y = self$measure_ids[2]
 
   # Plot pareto front
+  # FIXME: Code here could be more beautiful
   df$on_front = seq_len(nrow(df)) %in% self$opt_result$pareto.inds
   front_data = df[df$on_front, c(x, y)]
   front_data = front_data[order(front_data[[x]]), ]
+  front_line = data.frame(front_data[[x]][-nrow(front_data)], front_data[[y]][-1])
+  colnames(front_line) = colnames(front_data)
+  front_line = rbind(front_data, front_line)
+  front_line = front_line[order(front_line[[x]]), ]
 
   p = ggplot2::ggplot(df, ggplot2::aes_string(x = x, y = y, color = color)) +
-  ggplot2::geom_path(data = front_data, ggplot2::aes_string(x = x, y = y), alpha = 0.5, color = "grey", size = 1) +
+  ggplot2::geom_path(data = front_line, ggplot2::aes_string(x = x, y = y), alpha = 0.7, color = "darkgrey", size = 1) +
   ggplot2::geom_point(ggplot2::aes(alpha = on_front, color = on_front), size = 1.5) +
   ggplot2::theme_bw() +
   ggplot2::guides(color = FALSE, alpha = FALSE) +
