@@ -28,7 +28,6 @@ plot_pareto_front = function(x = NULL, y = NULL, plotly = FALSE) {
 
 #' Nonconvex pareto front for a given weight range (limiting random projections).
 plot_pareto_front_projections = function(x = NULL, y = NULL, wt_range = c(0, 1), plotly = FALSE) {
-
   assert_choice(x, self$measure_ids, null.ok = TRUE)
   assert_choice(y, self$measure_ids, null.ok = TRUE)
   assert_numeric(wt_range, lower = 0, upper = 1, len = 2L)
@@ -53,8 +52,8 @@ plot_pareto_front_projections = function(x = NULL, y = NULL, wt_range = c(0, 1),
     x, y, measures[[x]]$minimize)
 
   p = self$plot_pareto_front(x, y, plotly) +
-    geom_point(data = df_focus$points, aes_string(x = x, y = y), color = "blue", shape = 16L, size = 3L, alpha = 0.8) +
-    geom_path(data = df_focus$line, aes_string(x = x, y = y), color = "blue", size = 1.5, alpha = .6)
+    ggplot2::geom_point(data = df_focus$points, ggplot2::aes_string(x = x, y = y), color = "blue", shape = 16L, size = 3L, alpha = 0.8) +
+    ggplot2::geom_path(data = df_focus$line, ggplot2::aes_string(x = x, y = y), color = "blue", size = 1.5, alpha = .6)
   if (plotly) plotly::ggplotly(p)
   else p
 }
@@ -68,7 +67,6 @@ get_pareto_data_nonconvex = function(front_data, x, y, x_minimize) {
   colnames(front_line) = colnames(front_data)
   front_line = rbind(front_data, front_line)
   front_line = front_line[order(front_line[[x]], decreasing = x_minimize), ]
-  rownames(front_line) = NULL
   return(list(points = front_data, line = front_line))
 }
 
@@ -96,7 +94,7 @@ plot_opt_path = function() {
 #' Parallel Coordinates Plot
 plot_parallel_coordinates = function(trim = 20L, plotly = FALSE) {
   assert_flag(plotly)
-  assert_integer(tim)
+  assert_integer(trim)
 
   requirePackages("tidyr")
   opt_df = self$get_opt_path_df()
