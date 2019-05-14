@@ -39,6 +39,9 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
     private$.logger  = assert_class(logger, "logger")
   },
   make_baselearner = function(task, measures, nthread, maximize_es_measure) {
+    self$make_baselearner_earlystop(task, measures, nthread, maximize_es_measure)
+  },
+  make_baselearner_earlystop = function(task, measures, nthread, maximize_es_measure) {
       private$.nthread = assert_integerish(nthread, lower = 1, len = 1L, null.ok = TRUE)
       tt = getTaskType(task)
       td = getTaskDesc(task)
@@ -79,6 +82,7 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
     # Build pipeline
     build_transform_pipeline = function(task) {
       has.cat.feats = sum(getTaskDesc(task)$n.feat[c("factors", "ordered")]) > 0
+
       preproc_pipeline = NULLCPO
       if (has.cat.feats) {
         preproc_pipeline %<>>% generateCatFeatPipeline(task, private$.impact_encoding_boundary)
