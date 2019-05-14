@@ -52,39 +52,15 @@ plot_pareto_front_projections = function(x = NULL, y = NULL, wt_range = c(0, 1),
   df_focus = get_pareto_data_nonconvex(df$points[seq(from = best_points[1], to = best_points[2]), ],
     x, y, measures[[x]]$minimize)
 
-  # mat = matrix(c(wt_range, 1 - wt_range), nrow = 2)
-
-  # slope = 1 / (
-  #   - c(
-  #     mat[1,1] * as.matrix(points_normal[best_points, ][1,1]),
-  #     mat[2,1] * as.matrix(points_normal[best_points, ][2,1])
-  #   ), 10^-16)
-  # intercepts = df$points[best_points, y] - (slope * df$points[best_points, x])
-
-
   p = self$plot_pareto_front(x, y, plotly = FALSE) +
     ggplot2::geom_point(data = df_focus$points, ggplot2::aes_string(x = x, y = y), color = "blue", shape = 16L, size = 3L, alpha = 0.8) +
-    ggplot2::geom_path(data = df_focus$line, ggplot2::aes_string(x = x, y = y), color = "blue", size = 1.5, alpha = .6) +
-    ggplot2::geom_abline(intercept = -15.05, slope =  (1 / 0.07))
-
+    ggplot2::geom_path(data = df_focus$line, ggplot2::aes_string(x = x, y = y), color = "blue", size = 1.5, alpha = .6)
 
   if (plotly) plotly::ggplotly(p)
   else p
 }
-
+#' Obtain the data required to plot non-convex pareto fronts
 get_pareto_data_nonconvex = function(front_data, x, y, x_minimize) {
-  # Make sure data is sorted
-  front_data = front_data[order(front_data[[x]]), c(x, y)]
-
-  # FIXME: This should work for all combinations of measure$minimize
-  front_line = data.frame(front_data[[x]][-nrow(front_data)], front_data[[y]][-1])
-  colnames(front_line) = colnames(front_data)
-  front_line = rbind(front_data, front_line)
-  front_line = front_line[order(front_line[[x]], decreasing = x_minimize), ]
-  return(list(points = front_data, line = front_line))
-}
-
-get_pareto_projection_lines = function(front_data, x, y, x_minimize) {
   # Make sure data is sorted
   front_data = front_data[order(front_data[[x]]), c(x, y)]
 

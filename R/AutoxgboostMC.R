@@ -39,18 +39,8 @@
 #' @param plot [\code{logical(1)}]\cr
 #'   Should the progress be plotted? Default is \code{TRUE}.
 #'
-#' Additional arguments that control the Bayesian Optimization process:
-#' Can be set / obtained via respective Active Bindings:
-#' @param control [\code{\link[mlrMBO]{MBOControl}}]\cr
-#'   Control object for optimizer.
-#'   If not specified, the default \code{\link[mlrMBO]{makeMBOControl}}] object will be used with
-#'   \code{iterations} maximum iterations and a maximum runtime of \code{time_budget} seconds.
-#' @param mbo_learner [\code{\link[mlr]{Learner}}]\cr
-#'   Regression learner from mlr, which is used as a surrogate to model our fitness function.
-#'   If \code{NULL} (default), the default learner is determined as described here:
-#'   \link[mlrMBO]{mbo_default_learner}.
-#' @param design_size [\code{integer(1)}]\cr
-#'   Size of the initial design. Default is \code{15L}.
+#' The optimization process can be controlled via additional arguments to `.$optimizer`.
+#' See `\code{\link{AxgbOptimizer}} for more information.
 #'
 #' Additional arguments that control the Pipeline:
 #' @param early_stopping_measure [\code{\link[mlr]{Measure}}]\cr
@@ -112,7 +102,6 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
 
       # Set defaults
       measures = coalesce(measures, list(getDefaultMeasure(task)))
-      self$measures = lapply(measures, self$set_measure_bounds)
       private$.parset = coalesce(parset, autoxgboostMC::autoxgbparset)
 
       private$.logger = log4r::logger(threshold = "WARN")
@@ -218,14 +207,6 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     },
 
     ## Setters for various hyperparameters -----------------------------------------------
-    set_measure_bounds = function(measure, best_valid = NULL, worst_valid = NULL) {
-      if(is.null(best_valid)  & is.null(measure$best_valid))  measure$best_valid = measure$best
-      else measure$best_valid = best_valid
-      if(is.null(worst_valid) & is.null(measure$worst_valid)) measure$best_valid = measure$best
-      else measure$worst_valid = worst_valid
-      if(is.null(measure$weight)) measure$weight = 1L
-      return(measure)
-    },
     set_hyperpars = function(par_vals) {
       assert_list(par_vals, names = "unique")
       lapply(names(par_vals), function(x) self[[x]] = par_vals[[x]])

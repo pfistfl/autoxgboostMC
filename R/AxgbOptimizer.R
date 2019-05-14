@@ -1,10 +1,11 @@
 #' @title Abstract Base Class
 #' @export
+#' @seealso \code{\link{AxgbOptimizerSMBO}}
 AxgbOptimizer = R6::R6Class("AxgbOptimizer",
   public = list(
     opt_state = NULL,
     opt_result = NULL,
-    fit = function(iterations, time_budget, plot) {stop("Abstract Base Class")},
+    fit = function() {stop("Abstract Base Class")},
     print = function(...) {
       if (!is.null(self$opt_result)) {
         op = self$opt_result$opt.path
@@ -45,6 +46,18 @@ AxgbOptimizer = R6::R6Class("AxgbOptimizer",
 
 #' @title Optimize using SMBO
 #'
+#' Additional arguments that control the Bayesian Optimization process:
+#' Can be set / obtained via respective Active Bindings:
+#' @param control [\code{\link[mlrMBO]{MBOControl}}]\cr
+#'   Control object for optimizer.
+#'   If not specified, the default \code{\link[mlrMBO]{makeMBOControl}}] object will be used with
+#'   \code{iterations} maximum iterations and a maximum runtime of \code{time_budget} seconds.
+#' @param mbo_learner [\code{\link[mlr]{Learner}}]\cr
+#'   Regression learner from mlr, which is used as a surrogate to model our fitness function.
+#'   If \code{NULL} (default), the default learner is determined as described here:
+#'   \link[mlrMBO]{mbo_default_learner}.
+#' @param design_size [\code{integer(1)}]\cr
+#'   Size of the initial design. Default is \code{15L}.
 #' @include plot_axgb_result.R
 #' @include helpers.R
 #' @export
@@ -70,6 +83,36 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
 
       log4r::info(private$.logger, "Finalizing MBO")
       self$opt_result = private$finalize_smbo()
+    },
+    set_possible_projections = function(measure_weights) {
+      if(self$n_objectives == 2L) {
+        assert_numeric(measure_weights, len = 2, lower = 0, upper = 1)
+        measure_weights = matrix(measure_weights, nrow = 1L)
+      } else {
+        assert_matrix(measure_weights, nrows = self$n_objectives - 1,
+          ncols = self$n_objectives - 1, mode = "numeric")
+      }
+
+      opt_problem = mlrMBO:::getOptStateOptProblem(self$opt_state)
+
+      # Generate possible_weights matrix (this specifies the range
+      # of allowed projections
+      ncomb = ceiling(100000^(1 / self$n_objectives))
+      ncomb = ncomb * 1 / min(1, min(abs(apply(measure_weights, 1, diff)))) # scale ncomb by range between weights
+      possible_weights = mlrMBO:::combWithSum(ncomb, self$n_objectives) / ncomb
+      # Reorder weights
+      vars = apply(possible_weights, 1, var)
+      possible_weights = rbind(diag(self$n_objectives), possible_weights[!vars == max(vars),])
+      # Force in bisector
+      possible_weights = rbind(possible_weights, rep(1/self$n_objectives, self$n_objectives))
+
+      # Only keep allowed projections (by limiting the n_objectives -1 measures).
+      keep_weights = sapply(seq_len(self$n_objectives - 1L), function(i) {
+        wt = measure_weights[i, ]
+        possible_weights[, i] >= min(wt) & possible_weights[, i] <= max(wt)
+      })
+      possible_weights = possible_weights[apply(keep_weights, 1, all),]
+      mlrMBO:::setOptProblemAllPossibleWeights(opt_problem, possible_weights)
     },
     plot_opt_path = plot_opt_path,
     plot_opt_result = function() {

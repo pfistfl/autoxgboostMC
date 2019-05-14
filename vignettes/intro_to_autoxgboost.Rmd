@@ -22,6 +22,8 @@ knitr::opts_chunk$set(
 library(mlr)
 library(autoxgboostMC)
 
+load_all()
+
 # Split into train and test data set.
 train.idx = sample(seq_len(768), 506)
 test.idx = setdiff(seq_len(768), train.idx)
@@ -83,7 +85,7 @@ axgb$final_model
 
 ```{r}
 axgb = AutoxgboostMC$new(train.task, measures = list(auc, timetrain))
-axgb$fit(time_budget = 25L)
+axgb$fit(time_budget = 10L)
 ```
 
 And visualize:
@@ -96,13 +98,38 @@ axgb$plot_parallel_coordinates(plotly = FALSE)
 axgb$plot_opt_result()
 ```
 
-Set weight ranges for `parEGO`.
+### Limiting the range of random projections in `parEgo`.
+
+In cases, where we deem a certain region of the pareto front more important, we can simply
+limit the range of the random projections allowed within `parEgo`.
+
+As we are usually not sure, how the tradeoff we want to provide looks like, `AutoxgboostMC`
+allows us to set a range for the tradeoff's we might want to make. This tradeoff can be
+adapted throughout the search process, to allow focusing on regions that
+This is done by setting a range of weights for the first measure in `parEGO`.
+By for example setting the range to $(0.0, 0.2)$, we can limit the importance of the first criterion to between
+$0$ and $20\%$ in comparison to the prediction time (both are scaled to [0, 1] before applying weights).
+
+We can visualize the impac for different projections:
 
 ```{r}
-axgb$plot_pareto_front_projections(wt_range = c(0.0, 0.1))
-axgb$plot_pareto_front_projections(wt_range = c(0.8, 0.8))
+axgb$plot_pareto_front_projections(wt_range = c(0.0, 0.2))
+axgb$plot_pareto_front_projections(wt_range = c(0.2, 0.8))
 axgb$plot_pareto_front_projections(wt_range = c(0.8, 1))
 ```
+
+And then set the possible projections we deem most important.
+
+```{r}
+axgb$optimizer$set_possible_projections(c(0.8, 1))
+```
+
+Afterwards, we simply run the `.$fit` method again, to search in the selected space.
+```{r}
+axgb$fit(time_budget = 20L)
+axgb$plot_pareto_front()
+```
+
 
 ## Scenario 3: Predictive Accuracy and Fairness
 
