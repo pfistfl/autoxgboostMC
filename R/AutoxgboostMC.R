@@ -101,7 +101,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       assert_class(parset, "ParamSet", null.ok = TRUE)
 
       # Set defaults
-      measures = coalesce(measures, list(getDefaultMeasure(task)))
+      self$measures = coalesce(measures, list(getDefaultMeasure(task)))
       private$.parset = coalesce(parset, autoxgboostMC::autoxgbparset)
 
       private$.logger = log4r::logger(threshold = "WARN")
@@ -150,7 +150,8 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         any(props == "req.truth") & !any(props == "req.prob")
       })
       if (!any(is_thresholded_measure) & tune_threshold) {
-        warning("Threshold tuning is active, but no measure for tuning thresholds!
+        log4r::warn(private$.logger,
+          "Threshold tuning is active, but no measure for tuning thresholds!
           Deactivating threshold tuning!")
         tune_threshold = FALSE
       }

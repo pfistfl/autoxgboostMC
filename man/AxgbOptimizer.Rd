@@ -11,4 +11,7 @@ AxgbOptimizer
 \description{
 Abstract Base Class
 }
+\seealso{
+\code{\link{AxgbOptimizerSMBO}}
+}
 \keyword{datasets}

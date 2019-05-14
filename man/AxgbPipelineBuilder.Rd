@@ -11,4 +11,7 @@ AxgbPipelineBuilder
 \description{
 Abstract Base Class
 }
+\seealso{
+\code{\link{AxgbPipelineBuilderXGB}}
+}
 \keyword{datasets}

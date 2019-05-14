@@ -3,12 +3,32 @@
 \docType{data}
 \name{AxgbOptimizerSMBO}
 \alias{AxgbOptimizerSMBO}
-\title{Optimize using SMBO}
+\title{Optimize using SMBO
+
+Additional arguments that control the Bayesian Optimization process:
+Can be set / obtained via respective Active Bindings:}
 \format{An object of class \code{R6ClassGenerator} of length 24.}
 \usage{
 AxgbOptimizerSMBO
 }
+\arguments{
+\item{control}{[\code{\link[mlrMBO]{MBOControl}}]\cr
+Control object for optimizer.
+If not specified, the default \code{\link[mlrMBO]{makeMBOControl}}] object will be used with
+\code{iterations} maximum iterations and a maximum runtime of \code{time_budget} seconds.}
+
+\item{mbo_learner}{[\code{\link[mlr]{Learner}}]\cr
+Regression learner from mlr, which is used as a surrogate to model our fitness function.
+If \code{NULL} (default), the default learner is determined as described here:
+\link[mlrMBO]{mbo_default_learner}.}
+
+\item{design_size}{[\code{integer(1)}]\cr
+Size of the initial design. Default is \code{15L}.}
+}
 \description{
 Optimize using SMBO
+
+Additional arguments that control the Bayesian Optimization process:
+Can be set / obtained via respective Active Bindings:
 }
 \keyword{datasets}

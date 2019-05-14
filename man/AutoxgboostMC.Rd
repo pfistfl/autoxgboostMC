@@ -41,21 +41,8 @@ Default is \code{FALSE}. The model can also be fitted after optimization using `
 \item{plot}{[\code{logical(1)}]\cr
   Should the progress be plotted? Default is \code{TRUE}.
 
-Additional arguments that control the Bayesian Optimization process:
-Can be set / obtained via respective Active Bindings:}
-
-\item{control}{[\code{\link[mlrMBO]{MBOControl}}]\cr
-Control object for optimizer.
-If not specified, the default \code{\link[mlrMBO]{makeMBOControl}}] object will be used with
-\code{iterations} maximum iterations and a maximum runtime of \code{time_budget} seconds.}
-
-\item{mbo_learner}{[\code{\link[mlr]{Learner}}]\cr
-Regression learner from mlr, which is used as a surrogate to model our fitness function.
-If \code{NULL} (default), the default learner is determined as described here:
-\link[mlrMBO]{mbo_default_learner}.}
-
-\item{design_size}{[\code{integer(1)}]\cr
-  Size of the initial design. Default is \code{15L}.
+The optimization process can be controlled via additional arguments to `.$optimizer`.
+See `\code{\link{AxgbOptimizer}} for more information.
 
 Additional arguments that control the Pipeline:}
 
