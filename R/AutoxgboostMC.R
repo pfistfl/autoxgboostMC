@@ -107,14 +107,14 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
 
       self$pipeline_builder = self$pipeline_builder_constructor$new(logger = private$.logger)
       transf_tasks = self$pipeline_builder$build_transform_pipeline(self$task)
-      private$baselearner = self$pipeline_builder$make_baselearner(self$task, self$measures, nthread, !self$early_stopping_measure$minimize)
+      private$.baselearner = self$pipeline_builder$make_baselearner(self$task, self$measures, nthread, !self$early_stopping_measure$minimize)
 
       self$obj_fun = self$make_objective_function(transf_tasks, private$.parset, self$pipeline_builder$tune_threshold)
 
       self$optimizer = self$optimizer_constructor$new(self$measures, self$obj_fun, private$.parset, private$.logger)
 
     },
-    fit = function(iterations = 160L, time_budget = 3600L, fit_final_model = TRUE, plot = TRUE) {
+    fit = function(iterations = 160L, time_budget = 3600L, fit_final_model = FALSE, plot = TRUE) {
       assert_integerish(iterations)
       assert_integerish(time_budget)
       assert_flag(fit_final_model)
@@ -124,7 +124,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       self$optimizer$fit(iterations, time_budget, plot)
 
       # Create final model
-      self$final_learner = self$build_final_learner()
+      self$final_learner = self$pipeline_builder$build_final_learner(self$optimizer$get_opt_pars())
       if(fit_final_model) self$fit_final_model()
     },
     predict = function(newdata) {
@@ -158,12 +158,12 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       smoof::makeMultiObjectiveFunction(name = "optimizeWrapperMultiCrit",
         fn = function(x) {
           x = x[!vlapply(x, is.na)]
-          lrn = setHyperPars(private$baselearner, par.vals = x)
-          mod = train(lrn, transf_tasks$task.train)
-          pred = predict(mod, transf_tasks$task.test)
+          lrn = setHyperPars(private$.baselearner, par.vals = x)
+          mod = train(lrn, transf_tasks$train_task)
+          pred = predict(mod, transf_tasks$test_task)
           nrounds = get_best_iteration(mod)
           # For now we tune threshold of first applicable measure.
-          if (tune_threshold && getTaskType(transf_tasks$task.train) == "classif") {
+          if (tune_threshold && getTaskType(transf_tasks$train_task) == "classif") {
             tune.res = tuneThreshold(pred = pred, measure = self$measures[is_thresholded_measure][[1]])
 
             if (length(self$measures[-which(is_thresholded_measure)[1]]) > 0) {
@@ -174,35 +174,17 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
             }
             attr(res, "extras") = list(nrounds = nrounds, .threshold = tune.res$th)
           } else {
-            res = performance(pred, self$measures, model = mod, task = transf_tasks$task.test)
+            res = performance(pred, self$measures, model = mod, task = transf_tasks$test_task)
             attr(res, "extras") = list(nrounds = nrounds)
           }
-
           return(res)
         },
         par.set = parset, noisy = FALSE, has.simple.signature = FALSE, minimize = self$measure_minimize,
         n.objectives = length(self$measures)
       )
     },
-    build_final_learner = function() {
-      nrounds = self$get_best_from_opt("nrounds")
-      pars = trafoValue(self$parset, self$opt_result$x)
-      pars = pars[!vlapply(pars, is.na)]
-
-      if (!is.null(private$baselearner$predict.type)) {
-        lrn = makeLearner("classif.xgboost.custom", nrounds = nrounds,
-          objective = private$baselearner$par.vals$objective,
-          predict.type = private$baselearner$predict.type,
-          predict.threshold = self$get_best_from_opt(".threshold"))
-      } else {
-        lrn = makeLearner("regr.xgboost.custom", nrounds = nrounds, objective = objective)
-      }
-      lrn = setHyperPars2(lrn, par.vals = pars)
-      lrn = self$pipeline_builder$preproc_pipeline %>>% lrn
-      return(lrn)
-    },
     fit_final_model = function() {
-      if(is.null(self$final_learner)) self$build_final_learner()
+      if(is.null(self$final_learner)) self$pipeline_builder$build_final_learner()
       self$final_model = train(self$final_learner, self$task)
     },
 
@@ -212,17 +194,19 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       lapply(names(par_vals), function(x) self[[x]] = par_vals[[x]])
       invisible(self)
     },
+    set_parset_bounds = function(param, lower = NULL, upper = NULL) {
+      ps = private$.parset
+      assert_choice(param, names(ps$pars))
+      if(!is.null(lower)) ps$pars[[param]]$lower = assert_number(lower)
+      if(!is.null(upper)) ps$pars[[param]]$upper = assert_number(upper)
+      private$.parset = ps
+      invisible(self)
+    },
     plot_pareto_front = plot_pareto_front,
     plot_pareto_front_projections = plot_pareto_front_projections,
     plot_parallel_coordinates = plot_parallel_coordinates,
     plot_opt_result = function() {self$optimizer$plot_opt_result()},
     plot_opt_path = function() {self$optimizer$plot_opt_path()},
-    ## Getters
-    # Get best value from optimization result
-    # @param what [`character(1)`]: "nrounds" or ".threshold"
-    get_best_from_opt = function(what) {
-      self$optimizer$get_best(what)
-    },
     get_opt_path_df = function() {self$optimizer$get_opt_path_df()}
   ),
 
@@ -335,7 +319,8 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     .resample_instance = NULL,
     .logger = NULL,
     .watch = NULL,
-    baselearner = NULL,
+    .baselearner = NULL,
     .parset = NULL
   )
 )
+

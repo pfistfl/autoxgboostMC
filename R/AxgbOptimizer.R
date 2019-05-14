@@ -84,6 +84,17 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
       log4r::info(private$.logger, "Finalizing MBO")
       self$opt_result = private$finalize_smbo()
     },
+    get_opt_pars = function() {
+      assert_true(!is.null(self$opt_result))
+      pars = trafoValue(self$parset, self$opt_result$x)
+      pars = pars[!vlapply(pars, is.na)]
+
+      nrounds = self$get_best("nrounds")
+      threshold = self$get_best(".threshold")
+      pars$nrounds = nrounds
+      pars$threshold = threshold
+      return(pars)
+    },
     set_possible_projections = function(measure_weights) {
       if(self$n_objectives == 2L) {
         assert_numeric(measure_weights, len = 2, lower = 0, upper = 1)
@@ -92,9 +103,7 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
         assert_matrix(measure_weights, nrows = self$n_objectives - 1,
           ncols = self$n_objectives - 1, mode = "numeric")
       }
-
       opt_problem = mlrMBO:::getOptStateOptProblem(self$opt_state)
-
       # Generate possible_weights matrix (this specifies the range
       # of allowed projections
       ncomb = ceiling(100000^(1 / self$n_objectives))

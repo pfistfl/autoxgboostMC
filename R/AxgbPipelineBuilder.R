@@ -33,8 +33,10 @@ AxgbPipelineBuilder = R6::R6Class("AxgbPipelineBuilder",
 AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
   inherit = AxgbPipelineBuilder,
   public = list(
-  task = NULL,
+  task_type = NULL,
+  baselearner = NULL,
   preproc_pipeline = NULL,
+
   initialize = function(logger) {
     private$.logger  = assert_class(logger, "logger")
   },
@@ -43,7 +45,7 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
   },
   make_baselearner_earlystop = function(task, measures, nthread, maximize_es_measure) {
       private$.nthread = assert_integerish(nthread, lower = 1, len = 1L, null.ok = TRUE)
-      tt = getTaskType(task)
+      self$task_type = getTaskType(task)
       td = getTaskDesc(task)
       req_prob_measure = sapply(measures, function(x) {
         any(getMeasureProperties(x) == "req.prob")
@@ -52,7 +54,7 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
       pv = list()
       if (!is.null(private$.nthread)) pv$nthread = private$.nthread
 
-      if (tt == "classif") {
+      if (self$task_type == "classif") {
         predict.type = ifelse(any(req_prob_measure) | private$.tune_threshold, "prob", "response")
         if(length(td$class.levels) == 2) {
           objective = "binary:logistic"
@@ -67,7 +69,7 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
           early_stopping_rounds = private$.early_stopping_rounds, maximize = maximize_es_measure,
           max.nrounds = private$.max_nrounds, par.vals = pv)
 
-      } else if (tt == "regr") {
+      } else if (self$task_type == "regr") {
         predict.type = NULL
         objective = "reg:linear"
         eval_metric = "rmse"
@@ -77,31 +79,50 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
       } else {
         stop("Task must be regression or classification")
       }
-      baselearner = setHyperPars(baselearner, early.stopping.data = private$.early_stopping_data)
+      self$baselearner = setHyperPars(baselearner, early.stopping.data = private$.early_stopping_data)
+      return(self$baselearner)
+    },
+    build_transform_pipeline = function(task) {
+      self$build_pipeline(task)
+      tfed_tasks = self$transform_with_pipeline(task)
+      return(tfed_tasks)
     },
     # Build pipeline
-    build_transform_pipeline = function(task) {
-      has.cat.feats = sum(getTaskDesc(task)$n.feat[c("factors", "ordered")]) > 0
-
+    build_pipeline = function(task) {
+      has_cat_feats = sum(getTaskDesc(task)$n.feat[c("factors", "ordered")]) > 0
       preproc_pipeline = NULLCPO
-      if (has.cat.feats) {
+      if (has_cat_feats) {
         preproc_pipeline %<>>% generateCatFeatPipeline(task, private$.impact_encoding_boundary)
       }
       preproc_pipeline %<>>% cpoDropConstants()
 
-      # process data and apply pipeline
-      # split early stopping data
+      # Store built pipeline.
+      self$preproc_pipeline = preproc_pipeline
+    },
+    transform_with_pipeline = function(task) {
+      # The pipeline stays constant during training. As a result, we preprocess data here
+      # once and split early stopping data.
       if (is.null(private$.resample_instance))
         private$.resample_instance = makeResampleInstance(makeResampleDesc("Holdout", split = private$.early_stopping_fraction), task)
-
-      task.test =  subsetTask(task, private$.resample_instance$test.inds[[1]])
-      task.train = subsetTask(task, private$.resample_instance$train.inds[[1]])
-
-      task.train %<>>% preproc_pipeline
-      task.test %<>>% retrafo(task.train)
-      private$.early_stopping_data = task.test
-      self$preproc_pipeline = preproc_pipeline
-      return(list(task.train = task.train, task.test = task.test))
+      train_task = subsetTask(task, private$.resample_instance$train.inds[[1]])
+      test_task =  subsetTask(task, private$.resample_instance$test.inds[[1]])
+      train_task %<>>% self$preproc_pipeline
+      test_task %<>>% retrafo(train_task)
+      private$.early_stopping_data = test_task
+      return(list(train_task = train_task, test_task = test_task))
+    },
+    build_final_learner = function(pars) {
+      if (self$task_type == "classif") {
+        lrn = makeLearner("classif.xgboost.custom", nrounds = pars$nrounds,
+          objective = self$baselearner$par.vals$objective,
+          predict.type = self$baselearner$predict.type,
+          predict.threshold = pars$threshold)
+      } else {
+        lrn = makeLearner("regr.xgboost.custom", nrounds = nrounds, objective = self$baselearner$par.vals$objective)
+      }
+      lrn = setHyperPars2(lrn, par.vals = pars)
+      lrn = self$preproc_pipeline %>>% lrn
+      return(lrn)
     }
   ),
   private = list(
@@ -116,6 +137,7 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
     .logger = NULL
   ),
   active = list(
+    resample_instance = function() {private$.resample_instance},
     max_nrounds = function(value) {
       if (missing(value)) {
         return(private$.max_nrounds)

@@ -42,7 +42,7 @@ fairpr = mlr::makeMeasure(id = "fairness.pr", minimize = TRUE, properties = c("c
 fairf1 = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("classif", "response", "req.task"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
-    groups = get_grouping(task, extra.args, 2L)
+    groups = get_grouping(task, pred, extra.args, 2L)
     fs = sapply(split(pred$data, f = groups), function(x) {
      measureF1(x$truth, x$response, pred$task.desc$positive)
     })
@@ -50,6 +50,19 @@ fairf1 = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("c
   }
 )
 
+#' Absolute differences of False Positive Rates between groups
+#' See Hardt et al, 2016: https://arxiv.org/pdf/1610.02413.pdf
+#' @export
+fairfpr = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("classif", "response", "req.task"),
+  extra.args = list(), best = 0, worst = 1,
+  fun = function(task, model, pred, feats, extra.args) {
+    groups = get_grouping(task, extra.args, 2L)
+    fs = sapply(split(pred$data, f = groups), function(x) {
+     measureFPR(x$truth, x$response, pred$task.desc$positive)
+    })
+    abs(max(fs) - min(fs))
+  }
+)
 #' Variance of F1 Scores between groups
 #' @export
 varf1 = mlr::makeMeasure(id = "fairness.varf1", minimize = TRUE, properties = c("classif", "response", "req.task"),
@@ -257,7 +270,7 @@ robustnoise = mlr::makeMeasure(id = "robustness.noise", minimize = FALSE,
 #' @export
 robustnoiseperfeat = mlr::makeMeasure(id = "robustness.perfeat.noise", minimize = FALSE,
   properties = c("classif", "response", "req.task", "req.model", "classif.multi"),
-  extra.args = list(eps = 0.01, n = 5L), best = 0, worst = 1,
+  extra.args = list(eps = 0.1, n = 5L), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
     eps = assert_numeric(extra.args$eps)
     reps = assert_integerish(extra.args$n)
@@ -281,13 +294,15 @@ robustnoiseperfeat = mlr::makeMeasure(id = "robustness.perfeat.noise", minimize 
 ### Helper functions
 
 #' Obtain a grouping factor from either a data column, an additional factor or a function.
-get_grouping = function(task, extra_args, n_levels = NULL) {
+get_grouping = function(task, pred, extra_args, n_levels = NULL) {
   if (is.character(extra_args$grouping)) {
     groups = assert_factor(getTaskData(task)[[extra_args$grouping]]) # Task-column that is a factor
   } else if (is.function(extra_args$grouping)) {
     groups = assert_factor(extra_args$grouping(getTaskData(task))) # Function that returns a factor
   } else {
     groups = assert_factor(extra_args$grouping) # Or a factor.
+    if(length(groups) != nrow(pred$data))
+      groups = groups[pred$data$id]
   }
   if (!is.null(n_levels)) assert_true(length(levels(groups)) == n_levels)
   return(groups)

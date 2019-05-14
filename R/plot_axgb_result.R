@@ -92,7 +92,7 @@ plot_opt_path = function() {
 }
 
 #' Parallel Coordinates Plot
-plot_parallel_coordinates = function(trim = 20L, plotly = FALSE) {
+plot_parallel_coordinates = function(trim = 20L, plotly = FALSE, order = "none") {
   assert_flag(plotly)
   assert_integer(trim)
 
@@ -109,6 +109,13 @@ plot_parallel_coordinates = function(trim = 20L, plotly = FALSE) {
   opt_df = cbind(opt_df, normed_pars)
   opt_df$iter = seq_len(nrow(opt_df))
   pdf_norm = tidyr::gather_(opt_df, key = "normed_x", value = "y", colnames(normed_pars))
+
+  if (order == "hclust") {
+    library(MASS)
+    hc1 <- hclust(dist(cor(log(iris[, 1:4]))))
+    parcoord(log(ir)[,  hc1$order ], col = 1 + (0:149)%/%50)
+  }
+
   pdf_text = tidyr::gather_(opt_df, key = "text", value = "textval", paste0("_", pars))
   text = unlist(sapply(split(pdf_text, pdf_text$iter), function(x) {
     iter = paste0("Iteration:", unique(pdf_text$iter))
