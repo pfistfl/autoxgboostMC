@@ -4,7 +4,7 @@
 \alias{get_grouping}
 \title{Obtain a grouping factor from either a data column, an additional factor or a function.}
 \usage{
-get_grouping(task, extra_args, n_levels = NULL)
+get_grouping(task, pred, extra_args, n_levels = NULL)
 }
 \description{
 Obtain a grouping factor from either a data column, an additional factor or a function.

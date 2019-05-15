@@ -4,7 +4,7 @@
 \alias{plot_parallel_coordinates}
 \title{Parallel Coordinates Plot}
 \usage{
-plot_parallel_coordinates(trim = 20L, plotly = FALSE)
+plot_parallel_coordinates(order = "hclust")
 }
 \description{
 Parallel Coordinates Plot
