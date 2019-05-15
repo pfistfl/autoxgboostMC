@@ -22,7 +22,7 @@ knitr::opts_chunk$set(
 library(mlr)
 library(autoxgboostMC)
 
-load_all()
+devtools::load_all()
 
 # Split into train and test data set.
 train.idx = sample(seq_len(768), 506)
@@ -69,7 +69,7 @@ axgb$predict(test.task)
 
 
 ```{r}
-axgb$plot_parallel_coordinates(plotly = FALSE)
+axgb$plot_parallel_coordinates()
 ```
 
 
@@ -94,7 +94,7 @@ And visualize:
 # Look at mosmafs pareto front plots
 # Pareto front should not be convex
 axgb$plot_pareto_front()
-axgb$plot_parallel_coordinates(plotly = FALSE)
+axgb$plot_parallel_coordinates()
 axgb$plot_opt_result()
 ```
 

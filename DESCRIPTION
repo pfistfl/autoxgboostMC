@@ -39,7 +39,8 @@ Suggests:
     rmarkdown,
     testthat,
     shiny,
-    vctrs
+    vctrs,
+    parcoords
 RoxygenNote: 6.1.1
 VignetteBuilder: knitr
 Collate:
