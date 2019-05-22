@@ -87,15 +87,16 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
 
     obj_fun = NULL,
 
-    pipeline_builder_constructor = AxgbPipelineBuilderXGB,
-    pipeline_builder = NULL,
-    optimizer_constructor = AxgbOptimizerSMBO,
+    pipeline = NULL,
     optimizer = NULL,
 
     final_learner = NULL,
     final_model = NULL,
 
-    initialize = function(task, measures = NULL, parset = NULL, nthread = NULL) {
+    initialize = function(task, measures = NULL, parset = NULL, nthread = NULL,
+      pipeline  = AxgbPipelineBuilderXGB$new(),
+      optimizer = AxgbOptimizerSMBO$new()) {
+
       self$task = assert_class(task, "SupervisedTask")
       assert_list(measures, types = "Measure", null.ok = TRUE)
       assert_class(parset, "ParamSet", null.ok = TRUE)
@@ -105,14 +106,15 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       private$.parset = coalesce(parset, autoxgboostMC::autoxgbparset)
       private$.logger = log4r::logger(threshold = "WARN")
 
-      self$pipeline_builder = self$pipeline_builder_constructor$new(logger = private$.logger)
-      transf_tasks = self$pipeline_builder$build_transform_pipeline(self$task)
-      private$.baselearner = self$pipeline_builder$make_baselearner(self$task, self$measures, nthread, !self$early_stopping_measure$minimize)
+      self$pipeline = assert_class(pipeline, "AxgbPipelineBuilder")
+      self$pipeline$configure(logger = private$.logger)
+      transf_tasks = self$pipeline$build_transform_pipeline(self$task)
+      private$.baselearner = self$pipeline$make_baselearner(self$task, self$measures, nthread, !self$early_stopping_measure$minimize)
 
       self$obj_fun = self$make_objective_function(transf_tasks, private$.parset, self$pipeline_builder$tune_threshold)
 
-      self$optimizer = self$optimizer_constructor$new(self$measures, self$obj_fun, private$.parset, private$.logger)
-
+      self$optimizer = assert_class(optimizer, "AxgbOptimizer")
+      self$optimizer$configure(measures = self$measures, objfun = self$objfun, parset = private$.parset, logger = private$.logger)
     },
     fit = function(iterations = 160L, time_budget = 3600L, fit_final_model = FALSE, plot = TRUE) {
       assert_integerish(iterations)

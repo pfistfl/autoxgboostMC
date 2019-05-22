@@ -6,6 +6,12 @@ AxgbOptimizer = R6::R6Class("AxgbOptimizer",
     opt_state = NULL,
     opt_result = NULL,
     fit = function() {stop("Abstract Base Class")},
+    configure = function(measures, objfun, parset, logger) {
+      private$.measures = measures
+      private$.obj_fun = assert_class(obj_fun, "smoof_function")
+      private$.parset  = assert_class(parset, "ParamSet")
+      private$.logger  = assert_class(logger, "logger")
+    },
     print = function(...) {
       if (!is.null(self$opt_result)) {
         op = self$opt_result$opt.path
@@ -37,10 +43,11 @@ AxgbOptimizer = R6::R6Class("AxgbOptimizer",
     }
   ),
   private = list(
-    .watch = NULL,
+    .measures = NULL,
     .logger = NULL,
     .obj_fun = NULL,
-    .parset = NULL
+    .parset = NULL,
+    .watch = NULL
   )
 )
 
@@ -64,12 +71,7 @@ AxgbOptimizer = R6::R6Class("AxgbOptimizer",
 AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
   inherit = AxgbOptimizer,
   public = list(
-    initialize = function(measures, obj_fun, parset, logger) {
-      private$.measures = measures
-      private$.obj_fun = assert_class(obj_fun, "smoof_function")
-      assert_true(length(measures) == self$n_objectives)
-      private$.parset  = assert_class(parset, "ParamSet")
-      private$.logger  = assert_class(logger, "logger")
+    initialize = function() {
     },
     fit = function(iterations, time_budget, plot) {
       private$.watch = Stopwatch$new(time_budget, iterations)
@@ -144,7 +146,6 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
     .control = NULL,
     .design_size = 15L,
     .mbo_learner = NULL,
-    .measures = NULL,
     fit_iteration = function(plot) {
       log4r::debug(private$.logger, catf("Fitting Iteration %s", private$.watch$current_iter))
       prop = proposePoints(self$opt_state)

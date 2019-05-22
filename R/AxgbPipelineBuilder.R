@@ -3,7 +3,15 @@
 #' @export
 AxgbPipelineBuilder = R6::R6Class("AxgbPipelineBuilder",
   public = list(
-  initialize = function() {stop("Abstract Base class!")}
+    initialize = function() {stop("Abstract Base class!")},
+    configure = function(logger) {
+      private$.logger  = assert_class(logger, "logger")
+    },
+    build_transform_pipeline = function{stop("Abstract Base class!")},
+    make_baselearner = function(){stop("Abstract Base class!")},
+  ),
+  private = list(
+    .logger = NULL
   )
 )
 
@@ -133,8 +141,7 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
     .impact_encoding_boundary = 10L,
     .resample_instance = NULL,
     .tune_threshold = TRUE,
-    .nthread = NULL,
-    .logger = NULL
+    .nthread = NULL
   ),
   active = list(
     resample_instance = function() {private$.resample_instance},
