@@ -7,8 +7,9 @@ AxgbPipelineBuilder = R6::R6Class("AxgbPipelineBuilder",
     configure = function(logger) {
       private$.logger  = assert_class(logger, "logger")
     },
-    build_transform_pipeline = function{stop("Abstract Base class!")},
-    make_baselearner = function(){stop("Abstract Base class!")},
+    build_transform_pipeline = function() {stop("Abstract Base class!")},
+    make_baselearner = function() {stop("Abstract Base class!")},
+    make_objective_function = function() {stop("Abstract Base class!")}
   ),
   private = list(
     .logger = NULL
@@ -48,14 +49,21 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
   initialize = function(logger) {
     private$.logger  = assert_class(logger, "logger")
   },
-  make_baselearner = function(task, measures, nthread, maximize_es_measure) {
-    self$make_baselearner_earlystop(task, measures, nthread, maximize_es_measure)
+  get_objfun = function(task, measures, nthread, maximize_es_measure) {
+    assert_class(task, "SupervisedTask")
+    private$.measures = assert_list(measures, types = "Measure", null.ok = TRUE)
+    private$.parset = assert_class(parset, "ParamSet", null.ok = TRUE)
+
+    transf_tasks = self$build_transform_pipeline(task)
+    private$.baselearner = self$make_baselearner_earlystop(task, nthread)
+    self$obj_fun = self$make_objective_function(transf_tasks, private$.parset, tune_threshold)
+
   },
-  make_baselearner_earlystop = function(task, measures, nthread, maximize_es_measure) {
+  make_baselearner_earlystop = function(task, nthread) {
       private$.nthread = assert_integerish(nthread, lower = 1, len = 1L, null.ok = TRUE)
       self$task_type = getTaskType(task)
       td = getTaskDesc(task)
-      req_prob_measure = sapply(measures, function(x) {
+      req_prob_measure = sapply(private$.measures, function(x) {
         any(getMeasureProperties(x) == "req.prob")
       })
 
@@ -131,7 +139,47 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
       lrn = setHyperPars2(lrn, par.vals = pars)
       lrn = self$preproc_pipeline %>>% lrn
       return(lrn)
-    }
+    },
+    make_objective_function = function(transf_tasks, parset, tune_threshold) {
+      is_thresholded_measure = sapply(private$.measures, function(x) {
+        props = getMeasureProperties(x)
+        any(props == "req.truth") & !any(props == "req.prob")
+      })
+      if (!any(is_thresholded_measure) & tune_threshold) {
+        log4r::info(private$.logger,
+          "Threshold tuning is active, but no measure for tuning thresholds!
+          Deactivating threshold tuning!")
+        tune_threshold = FALSE
+      }
+
+      smoof::makeMultiObjectiveFunction(name = "optimizeWrapperMultiCrit",
+        fn = function(x) {
+          x = x[!vlapply(x, is.na)]
+          lrn = setHyperPars(private$.baselearner, par.vals = x)
+          mod = train(lrn, transf_tasks$train_task)
+          pred = predict(mod, transf_tasks$test_task)
+          nrounds = get_best_iteration(mod)
+          # For now we tune threshold of first applicable measure.
+          if (tune_threshold && getTaskType(transf_tasks$train_task) == "classif") {
+            tune.res = tuneThreshold(pred = pred, measure = private$.measures[is_thresholded_measure][[1]])
+
+            if (length(private$.measures[-which(is_thresholded_measure)[1]]) > 0) {
+              res = performance(pred, private$.measures[-which(is_thresholded_measure)[1]], model = mod, task = transf_tasks$task.test)
+              res = c(res, tune.res$perf)
+            } else {
+              res = tune.res$perf
+            }
+            attr(res, "extras") = list(nrounds = nrounds, .threshold = tune.res$th)
+          } else {
+            res = performance(pred, private$.measures, model = mod, task = transf_tasks$test_task)
+            attr(res, "extras") = list(nrounds = nrounds)
+          }
+          return(res)
+        },
+        par.set = parset, noisy = FALSE, has.simple.signature = FALSE, minimize = self$measure_minimize,
+        n.objectives = length(private$.measures)
+      )
+    },
   ),
   private = list(
     .max_nrounds = 3*10^3L,
@@ -141,7 +189,9 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
     .impact_encoding_boundary = 10L,
     .resample_instance = NULL,
     .tune_threshold = TRUE,
-    .nthread = NULL
+    .nthread = NULL,
+    .measures = NULL,
+    .baselearner = NULL
   ),
   active = list(
     resample_instance = function() {private$.resample_instance},

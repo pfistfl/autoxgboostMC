@@ -108,10 +108,9 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
 
       self$pipeline = assert_class(pipeline, "AxgbPipelineBuilder")
       self$pipeline$configure(logger = private$.logger)
-      transf_tasks = self$pipeline$build_transform_pipeline(self$task)
-      private$.baselearner = self$pipeline$make_baselearner(self$task, self$measures, nthread, !self$early_stopping_measure$minimize)
+      self$pipeline$get_objfun(self$task, private$.parset, )
 
-      self$obj_fun = self$make_objective_function(transf_tasks, private$.parset, self$pipeline_builder$tune_threshold)
+
 
       self$optimizer = assert_class(optimizer, "AxgbOptimizer")
       self$optimizer$configure(measures = self$measures, objfun = self$objfun, parset = private$.parset, logger = private$.logger)
@@ -145,46 +144,6 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     },
 
     # MBO --------------------------------------------------------------------------------
-    make_objective_function = function(transf_tasks, parset, tune_threshold) {
-      is_thresholded_measure = sapply(self$measures, function(x) {
-        props = getMeasureProperties(x)
-        any(props == "req.truth") & !any(props == "req.prob")
-      })
-      if (!any(is_thresholded_measure) & tune_threshold) {
-        log4r::info(private$.logger,
-          "Threshold tuning is active, but no measure for tuning thresholds!
-          Deactivating threshold tuning!")
-        tune_threshold = FALSE
-      }
-
-      smoof::makeMultiObjectiveFunction(name = "optimizeWrapperMultiCrit",
-        fn = function(x) {
-          x = x[!vlapply(x, is.na)]
-          lrn = setHyperPars(private$.baselearner, par.vals = x)
-          mod = train(lrn, transf_tasks$train_task)
-          pred = predict(mod, transf_tasks$test_task)
-          nrounds = get_best_iteration(mod)
-          # For now we tune threshold of first applicable measure.
-          if (tune_threshold && getTaskType(transf_tasks$train_task) == "classif") {
-            tune.res = tuneThreshold(pred = pred, measure = self$measures[is_thresholded_measure][[1]])
-
-            if (length(self$measures[-which(is_thresholded_measure)[1]]) > 0) {
-              res = performance(pred, self$measures[-which(is_thresholded_measure)[1]], model = mod, task = transf_tasks$task.test)
-              res = c(res, tune.res$perf)
-            } else {
-              res = tune.res$perf
-            }
-            attr(res, "extras") = list(nrounds = nrounds, .threshold = tune.res$th)
-          } else {
-            res = performance(pred, self$measures, model = mod, task = transf_tasks$test_task)
-            attr(res, "extras") = list(nrounds = nrounds)
-          }
-          return(res)
-        },
-        par.set = parset, noisy = FALSE, has.simple.signature = FALSE, minimize = self$measure_minimize,
-        n.objectives = length(self$measures)
-      )
-    },
     fit_final_model = function() {
       if(is.null(self$final_learner)) self$pipeline_builder$build_final_learner()
       self$final_model = train(self$final_learner, self$task)
