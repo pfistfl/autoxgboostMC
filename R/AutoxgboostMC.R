@@ -103,19 +103,18 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
 
       # Set defaults
       self$measures = coalesce(measures, list(getDefaultMeasure(task)))
-
-
-
       private$.logger = log4r::logger(threshold = "WARN")
 
+      # Construct pipeline and learner
       self$pipeline = assert_class(pipeline, "AxgbPipelineBuilder")
       self$pipeline$configure(logger = private$.logger, parset = parset)
 
       obj_fun = self$pipeline$get_objfun(self$task, self$measures, parset, nthread)
-      private$.parset = obj_fun$.parset
+      private$.parset = attr(obj_fun, "par.set")
 
+      # Initialize Optimizer
       self$optimizer = assert_class(optimizer, "AxgbOptimizer")
-      self$optimizer$configure(measures = self$measures, objfun = obj_fun$obj_fun, parset = private$.parset, logger = private$.logger)
+      self$optimizer$configure(measures = self$measures, obj_fun = obj_fun, parset = private$.parset, logger = private$.logger)
     },
     fit = function(iterations = 160L, time_budget = 3600L, fit_final_model = FALSE, plot = TRUE) {
       assert_integerish(iterations)

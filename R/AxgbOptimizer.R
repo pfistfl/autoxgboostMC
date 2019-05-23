@@ -6,9 +6,9 @@ AxgbOptimizer = R6::R6Class("AxgbOptimizer",
     opt_state = NULL,
     opt_result = NULL,
     fit = function() {stop("Abstract Base Class")},
-    configure = function(measures, objfun, parset, logger) {
+    configure = function(measures, obj_fun, parset, logger) {
       private$.measures = measures
-      private$.obj_fun = assert_class(obj_fun, "smoof_function")
+      private$.obj_fun = assert_function(obj_fun)
       private$.parset  = assert_class(parset, "ParamSet")
       private$.logger  = assert_class(logger, "logger")
     },
@@ -150,10 +150,11 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
       log4r::debug(private$.logger, catf("Fitting Iteration %s", private$.watch$current_iter))
       prop = proposePoints(self$opt_state)
       x = trafoValue(private$.parset, dfRowsToList(df = prop$prop.points, par.set = self$parset)[[1]])
-      y = private$.obj_fun(x)
-      updateSMBO(self$opt_state, x = prop$prop.points, y = y)
-      # Write out .nrounds etc. (currently missing in mlrMBO)
-      # self$opt_state$opt.path$env$extra[[length(self$opt_state$opt.path$env$extra)]] = c(self$opt_state$opt.path$env$extra[[length(self$opt_state$opt.path$env$extra)]], attr(y, "extras"))
+      y = private$.obj_fun(x, subevals = TRUE)
+      if (length(y) > 2)
+      xy_pareto = get_pareto_set(prop$prop.points, y)
+
+      updateSMBO(self$opt_state, x = xy_pareto$x, y = xy_pareto$y)
       self$watch$increment_iter()
       if(plot) self$plot_opt_path()
     },
@@ -167,8 +168,13 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
           private$.control = setMBOControlInfill(private$.control, crit = makeMBOInfillCritDIB(cb.lambda = 2L))
         }
       }
-      des = generateDesign(n = private$.design_size, private$.parset)
-      # Doing one iteration here to evaluate design saves a lot of redundancy.
+
+      # Get fast initial models
+      init_parset = private$.parset
+      init_parset$pars$nrounds$upper = 15L
+      des = generateDesign(n = private$.design_size, init_parset)
+
+      # Doing one iteration here to evaluate design, saves a lot of redundancy.
       private$.control = setMBOControlTermination(private$.control, iters = 1L)
       opt_result = mbo(fun = private$.obj_fun, design = des, learner = private$.mbo_learner,
         control = private$.control)
@@ -185,6 +191,20 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
         opt_result$y = as.list(opt_result$opt.path$env$path[self$get_best_ind(opt_result), self$measure_ids])
       }
       return(opt_result)
+    },
+    get_pareto_set = function(x_new, y) {
+      # Add evals and subevals together
+      x_subeval = data.frame(attr(y, "extras")$subevals$x)
+      x_new = cbind(x_new[-which(colnames(x) == "nrounds")], nrounds = x_subeval$ntreelimit)
+      if (TRUE) x_new$threshold = x_subeval$pos
+      x_new = rbind(x_new, prop$prop.poinds)
+
+      y_subeval = data.frame(attr(y, "extras")$subevals$y)
+      y_new = rbind(y_subeval, y)
+
+      # And obtain the pareto front
+      pareto.set = get_pareto_front(x_new, y_new, private$.parset, private$.measures)
+      list(x = NULL, y = NULL)
     }
   ),
   active = list(

@@ -54,14 +54,16 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
   },
   get_objfun = function(task, measures, parset, nthread) {
     assert_class(task, "SupervisedTask")
+    assert_class(parset, "ParamSet", null.ok = TRUE)
     private$.measures = assert_list(measures, types = "Measure", null.ok = TRUE)
-    private$.parset = assert_class(parset, "ParamSet", null.ok = TRUE)
-    private$.parset = c(private$.parset, self$make_subeval_parset(task))
+    private$.parset = coalesce(parset, autoxgboostMC::autoxgbparset)
+    private$.parset = c(private$.parset, private$make_subeval_parset(task))
 
-    transf_tasks = self$build_transform_pipeline(task)
+    self$preproc_pipeline = self$build_pipeline(task)
+    transf_tasks = self$transform_with_pipeline(task)
     private$.baselearner = self$make_baselearner(task, nthread)
     obj_fun = self$make_objective_function_multicrit(transf_tasks)
-    list(obj_fun = obj_fun, parset = private$.parset)
+    return(obj_fun)
   },
   make_baselearner = function(task, nthread) {
       private$.nthread = assert_integerish(nthread, lower = 1, len = 1L, null.ok = TRUE)
@@ -75,7 +77,7 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
         if(length(td$class.levels) == 2) {
           objective = "binary:logistic"
           eval_metric = "error"
-          parset = c(private$.parset, makeParamSet(makeNumericParam("scale_pos_weight", lower = -10, upper = 10, trafo = function(x) 2^x)))
+          private$.parset = c(private$.parset, makeParamSet(makeNumericParam("scale_pos_weight", lower = -10, upper = 10, trafo = function(x) 2^x)))
         } else {
           objective = "multi:softprob"
           eval_metric = "merror"
@@ -93,11 +95,6 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
       }
       return(baselearner)
     },
-    build_transform_pipeline = function(task) {
-      self$build_pipeline(task)
-      transf_tasks = self$transform_with_pipeline(task)
-      return(transf_tasks)
-    },
     # Build pipeline
     build_pipeline = function(task) {
       has_cat_feats = sum(getTaskDesc(task)$n.feat[c("factors", "ordered")]) > 0
@@ -106,20 +103,17 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
         preproc_pipeline %<>>% generateCatFeatPipeline(task, private$.impact_encoding_boundary)
       }
       preproc_pipeline %<>>% cpoDropConstants()
-
-      # Store built pipeline.
-      self$preproc_pipeline = preproc_pipeline
+      return(preproc_pipeline)
     },
     transform_with_pipeline = function(task) {
       # The pipeline stays constant during training. As a result, we preprocess data here
       # once and split early stopping data.
       if (is.null(private$.resample_instance))
-        private$.resample_instance = makeResampleInstance(makeResampleDesc("Holdout", split = private$.early_stopping_fraction), task)
+        private$.resample_instance = makeResampleInstance(makeResampleDesc("Holdout", split = 0.75), task)
       train_task = subsetTask(task, private$.resample_instance$train.inds[[1]])
-      test_task =  subsetTask(task, private$.resample_instance$test.inds[[1]])
+      test_task  = subsetTask(task, private$.resample_instance$test.inds[[1]])
       train_task %<>>% self$preproc_pipeline
-      test_task %<>>% retrafo(train_task)
-      private$.early_stopping_data = test_task
+      test_task  %<>>% retrafo(train_task)
       return(list(train_task = train_task, test_task = test_task))
     },
     build_final_learner = function(pars) {
@@ -136,57 +130,67 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
       return(lrn)
     },
     make_objective_function_multicrit = function(transf_tasks) {
-      function(x) {
+      smoof::makeMultiObjectiveFunction(name = "optimizeWrapperMultiCrit",
+      fn = function(x, subevals = FALSE) {
         x = x[!vlapply(x, is.na)]
-        lrn = setHyperPars(private$.baselearner, par.vals = x)
+        lrn = setHyperPars(private$.baselearner, par.vals = x[vlapply(names(x), `!=`, "threshold")])
         mod = train(lrn, transf_tasks$train_task)
         pred = predict(mod, transf_tasks$test_task)
         pred = setThreshold(pred, x$threshold)
-        browser()
-        perf = performance(pred, model = mod, task = task, measures = private$.measures)
-        out = get_subevals(mod, transf_tasks$test_task)
+        res = performance(pred, model = mod, task = task, measures = private$.measures)
+
+        if (subevals) attr(res, "extras") = list(subevals = private$get_subevals(mod, transf_tasks$test_task, private$.measures))
         return(res)
-      }
-    },
-    make_subeval_parset = function(task) {
-      threshold_len = task$task.desc$class.levels
-      if (n_classes == 2L) threshold_len = 1L
-      makeParamSet(
-        makeNumericVectorParam(threshold, lower = 0, upper = 1, len = n_classes, trafo = function(x) {
-         if(length(x) > 1L) x = x / sum(x)
-         return(x)
-        }),
-        makeIntegerLearnerParam(id = "nrounds", default = 1L, lower = 1L, upper = private$.max_nrounds)
-      )
+      },
+      par.set = private$.parset, n.objectives = length(private$.measures), minimize = self$measures_minimize,
+      noisy = FALSE, has.simple.signature = FALSE)
     }
   ),
   private = list(
-    get_subevals = function(mod, task) {
+    get_subevals = function(mod, task, measures) {
       n_classes = length(task$task.desc$class.levels)
 
       # Compute a set of different thresholds and nrounds
       ncomb = ceiling(100^(1 / n_classes))
       threshold_vals = mlrMBO:::combWithSum(ncomb, n_classes) / ncomb
-      if (n_classes > 2) threshold_vals = rbind(threshold_vals, 1 / n_classes)
-      colnames(threshold_vals) = task$task.desc$class.levels
-      nrounds_vals  = quantile(seq_len(mod$learner$par.vals$nrounds), probs = c(25, 50, 75, 100)/100 type = 1)
+      if (n_classes > 2L) {
+        threshold_vals = rbind(threshold_vals, 1 / n_classes)
+        colnames(threshold_vals) = task$task.desc$class.levels
+      } else {
+        threshold_vals = threshold_vals[, 1]
+      }
 
-
-      # Outer product over thresholds and nrounds
-      grd = expand.grid(i = seq_len(length(nrounds_vals)), j = seq_len(nrow(threshold_vals)))
-      out = Map(function(i, j) {list(nrounds = nrounds_vals[i], threshold = threshold_vals[j, ])},
-        i = grd$i, j = grd$j)
+      thresholds = BBmisc::convertRowsToList(threshold_vals, name.vector = TRUE)
+      ntreelimit_vals  = quantile(seq_len(mod$learner$par.vals$nrounds), probs = c(25, 50, 75, 100)/100, type = 1)
 
       # Compute performances
-      perfs = lapply(out, function(rw) {
-        pp = predict_classif_with_subevals(mod, .task = task, ntreelimit = rw$nrounds, predict.threshold = rw$threshold)
-        performance(pp, model = mod, task = task, measures = private$.measures)
+      lst = lapply(ntreelimit_vals, function(ntreelimit) {
+        # Predict with ntreelimit < nrounds trees
+        mod$learner$par.vals$ntreelimit = ntreelimit
+        prd = predict(mod, task = task)
+        # Predict for different thresholds
+        do.call("rbind", lapply(thresholds, function(threshold) {
+          prd = setThreshold(prd, threshold)
+          performance(prd, model = mod, measures = measures)
+        }))
       })
-
-      list(y = convertListOfRowsToDataFrame(perfs),
-        x = do.call("rbind", lapply(out, function(x) c(setNames(x$nrounds, "nrounds"), x$threshold))))
+      list(
+        y = do.call("rbind", lst),
+        x = data.frame(do.call("rbind", lapply(ntreelimit_vals, function(x) cbind(ntreelimit = x, threshold_vals))))
+      )
     },
-    .max_nrounds = 3*10^3L,
+    make_subeval_parset = function(task) {
+      threshold_len = length(task$task.desc$class.levels)
+      if (threshold_len == 2L) threshold_len = 1L
+      makeParamSet(
+        makeNumericVectorParam("threshold", lower = 0, upper = 1, len = threshold_len, trafo = function(x) {
+         if(length(x) > 1L) x = x / sum(x)
+         return(x)
+        }),
+        makeIntegerParam(id = "nrounds", lower = 1L, upper = private$.max_nrounds)
+      )
+    },
+    .max_nrounds = 300L,
     .impact_encoding_boundary = 10L,
     .resample_instance = NULL,
     .nthread = NULL,
@@ -243,7 +247,8 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
       } else {
         private$.logger = assert_integerish(value, lower = 1, len = 1L, null.ok = TRUE)
       }
-    }
+    },
+    measures_minimize = function() {sapply(private$.measures, function(x) x$minimize)}
   )
 )
 

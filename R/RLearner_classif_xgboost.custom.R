@@ -43,7 +43,8 @@ makeRLearner.classif.xgboost.custom = function() {
       makeIntegerLearnerParam(id = "max_leaves", default = 0L, lower = 0L, requires = quote(grow_policy == "lossguide")),
       makeIntegerLearnerParam(id = "max_bin", default = 256L, lower = 2L, requires = quote(tree_method == "hist")),
       makeUntypedLearnerParam(id = "callbacks", default = list(), tunable = FALSE),
-      makeNumericLearnerParam(id = "scale_pos_weight", lower = 0)
+      makeNumericLearnerParam(id = "scale_pos_weight", lower = 0),
+      makeIntegerLearnerParam(id = "ntreelimit", lower = 1, upper = Inf, default = NULL, special.vals = list(NULL), when = "predict")
     ),
     par.vals = list(nrounds = 1L, verbose = 0L),
     properties = c("twoclass", "multiclass", "numerics", "prob", "weights", "missings", "featimp"),

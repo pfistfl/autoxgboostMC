@@ -1,10 +1,13 @@
 library(mlr)
 devtools::load_all()
-lrn = makeLearner("classif.xgboost", predict.type = "prob", nrounds = 10L)
+lrn = makeLearner("classif.xgboost.custom", predict.type = "prob", nrounds = 10L)
 mod = train(learner = lrn, task = iris.task)
 task = iris.task
 measures = list(acc, timetrain)
 n_classes = length(task$task.desc$class.levels)
+
+mod$learner$par.vals$ntreelimit = 1
+performance(predict(mod, task), model = mod, measures = measures)
 
 
 # Compute a set of different thresholds and nrounds

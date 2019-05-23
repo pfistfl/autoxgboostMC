@@ -19,6 +19,14 @@ get_best_iteration = function(mod) {
   getLearnerModel(mod, more.unwrap = TRUE)$best_iteration
 }
 
+get_pareto_front = function(x, y, ps, measures) {
+  minimize = vlapply(measures, function(x) x$minimize)
+  y.names = vcapply(measures, function(x) x$id)
+  op = makeOptPathDF(par.set = ps, y.names = y.names, minimize = minimize)
+  for (i in seq_len(nrow(x))) addOptPathEl(op = op, x = convertRowsToList(x)[[i]], y = convertRowsToList(y)[[i]])
+  getOptPathParetoFront(op, index = TRUE)
+}
+
 # This generates a preprocessing pipeline to handle categorical features
 # @param task: the task
 # @param impact.encoding.boundary: See autoxgboost
