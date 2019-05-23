@@ -7,8 +7,8 @@ AxgbPipelineBuilder = R6::R6Class("AxgbPipelineBuilder",
     configure = function(logger) {
       private$.logger  = assert_class(logger, "logger")
     },
-    build_transform_pipeline = function{stop("Abstract Base class!")},
-    make_baselearner = function(){stop("Abstract Base class!")},
+    build_transform_pipeline = function() {stop("Abstract Base class!")},
+    make_baselearner = function(){stop("Abstract Base class!")}
   ),
   private = list(
     .logger = NULL
@@ -45,9 +45,7 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
   baselearner = NULL,
   preproc_pipeline = NULL,
 
-  initialize = function(logger) {
-    private$.logger  = assert_class(logger, "logger")
-  },
+  initialize = function(logger) {},
   make_baselearner = function(task, measures, nthread, maximize_es_measure) {
     self$make_baselearner_earlystop(task, measures, nthread, maximize_es_measure)
   },
