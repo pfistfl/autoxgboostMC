@@ -4,15 +4,19 @@
 AxgbPipelineBuilder = R6::R6Class("AxgbPipelineBuilder",
   public = list(
     initialize = function() {stop("Abstract Base class!")},
-    configure = function(logger) {
-      private$.logger  = assert_class(logger, "logger")
+    configure = function(logger, parset) {
+      if (is.null(private$.logger))
+        private$.logger = assert_class(logger, "logger")
+      if (is.null(private$.parset))
+        private$.parset =  coalesce(parset, autoxgboostMC::autoxgbparset)
     },
     build_transform_pipeline = function() {stop("Abstract Base class!")},
-    make_baselearner = function() {stop("Abstract Base class!")},
-    make_objective_function = function() {stop("Abstract Base class!")}
+    make_baselearner =         function() {stop("Abstract Base class!")},
+    make_objective_function =  function() {stop("Abstract Base class!")}
   ),
   private = list(
-    .logger = NULL
+    .logger = NULL,
+    .parset = NULL
   )
 )
 
@@ -46,62 +50,53 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
   baselearner = NULL,
   preproc_pipeline = NULL,
 
-  initialize = function(logger) {
-    private$.logger  = assert_class(logger, "logger")
+  initialize = function() {
   },
-  get_objfun = function(task, measures, nthread, maximize_es_measure) {
+  get_objfun = function(task, measures, parset, nthread) {
     assert_class(task, "SupervisedTask")
     private$.measures = assert_list(measures, types = "Measure", null.ok = TRUE)
     private$.parset = assert_class(parset, "ParamSet", null.ok = TRUE)
+    private$.parset = c(private$.parset, self$make_subeval_parset(task))
 
     transf_tasks = self$build_transform_pipeline(task)
-    private$.baselearner = self$make_baselearner_earlystop(task, nthread)
-    self$obj_fun = self$make_objective_function(transf_tasks, private$.parset, TRUE)
-
+    private$.baselearner = self$make_baselearner(task, nthread)
+    obj_fun = self$make_objective_function_multicrit(transf_tasks)
+    list(obj_fun = obj_fun, parset = private$.parset)
   },
-  make_baselearner_earlystop = function(task, nthread) {
+  make_baselearner = function(task, nthread) {
       private$.nthread = assert_integerish(nthread, lower = 1, len = 1L, null.ok = TRUE)
       self$task_type = getTaskType(task)
       td = getTaskDesc(task)
-      req_prob_measure = sapply(private$.measures, function(x) {
-        any(getMeasureProperties(x) == "req.prob")
-      })
 
       pv = list()
       if (!is.null(private$.nthread)) pv$nthread = private$.nthread
 
       if (self$task_type == "classif") {
-        predict.type = ifelse(any(req_prob_measure) | private$.tune_threshold, "prob", "response")
         if(length(td$class.levels) == 2) {
           objective = "binary:logistic"
           eval_metric = "error"
-          parset = c(self$parset, makeParamSet(makeNumericParam("scale_pos_weight", lower = -10, upper = 10, trafo = function(x) 2^x)))
+          parset = c(private$.parset, makeParamSet(makeNumericParam("scale_pos_weight", lower = -10, upper = 10, trafo = function(x) 2^x)))
         } else {
           objective = "multi:softprob"
           eval_metric = "merror"
         }
-        baselearner = makeLearner("classif.xgboost.earlystop", id = "classif.xgboost.earlystop",
-          predict.type = predict.type, eval_metric = eval_metric, objective = objective,
-          early_stopping_rounds = private$.early_stopping_rounds, maximize = maximize_es_measure,
-          max.nrounds = private$.max_nrounds, par.vals = pv)
-
+        baselearner = makeLearner("classif.xgboost.custom", id = "classif.xgboost.custom",
+          predict.type = "prob", eval_metric = eval_metric, objective = objective, par.vals = pv)
       } else if (self$task_type == "regr") {
         predict.type = NULL
         objective = "reg:linear"
         eval_metric = "rmse"
-        baselearner = makeLearner("regr.xgboost.earlystop", id = "regr.xgboost.earlystop",
-          eval_metric = eval_metric, objective = objective, early_stopping_rounds = private$.early_stopping_rounds,
-          maximize = maximize_es_measure, max.nrounds = private$.max_nrounds, par.vals = pv)
+        baselearner = makeLearner("regr.xgboost.custom", id = "regr.xgboost.custom",
+          eval_metric = eval_metric, objective = objective, par.vals = pv)
       } else {
         stop("Task must be regression or classification")
       }
-      self$baselearner = setHyperPars(baselearner, early.stopping.data = private$.early_stopping_data)
-      return(self$baselearner)
+      return(baselearner)
     },
     build_transform_pipeline = function(task) {
       self$build_pipeline(task)
-      tfed_tasks = self$transform_with_pipeline(task)
-      return(tfed_tasks)
+      transf_tasks = self$transform_with_pipeline(task)
+      return(transf_tasks)
     },
     # Build pipeline
     build_pipeline = function(task) {
@@ -140,34 +135,60 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
       lrn = self$preproc_pipeline %>>% lrn
       return(lrn)
     },
-    make_objective_function_multicrit = function(transf_tasks, parset, tune_threshold) {
-      is_thresholded_measure = sapply(private$.measures, function(x) {
-        props = getMeasureProperties(x)
-        any(props == "req.truth") & !any(props == "req.prob")
-      })
-      if (!any(is_thresholded_measure) & tune_threshold) {
-        log4r::info(private$.logger,
-          "Threshold tuning is active, but no measure for tuning thresholds!
-          Deactivating threshold tuning!")
-        tune_threshold = FALSE
-      }
+    make_objective_function_multicrit = function(transf_tasks) {
       function(x) {
         x = x[!vlapply(x, is.na)]
         lrn = setHyperPars(private$.baselearner, par.vals = x)
         mod = train(lrn, transf_tasks$train_task)
         pred = predict(mod, transf_tasks$test_task)
+        pred = setThreshold(pred, x$threshold)
+        browser()
+        perf = performance(pred, model = mod, task = task, measures = private$.measures)
+        out = get_subevals(mod, transf_tasks$test_task)
         return(res)
       }
+    },
+    make_subeval_parset = function(task) {
+      threshold_len = task$task.desc$class.levels
+      if (n_classes == 2L) threshold_len = 1L
+      makeParamSet(
+        makeNumericVectorParam(threshold, lower = 0, upper = 1, len = n_classes, trafo = function(x) {
+         if(length(x) > 1L) x = x / sum(x)
+         return(x)
+        }),
+        makeIntegerLearnerParam(id = "nrounds", default = 1L, lower = 1L, upper = private$.max_nrounds)
+      )
     }
   ),
   private = list(
+    get_subevals = function(mod, task) {
+      n_classes = length(task$task.desc$class.levels)
+
+      # Compute a set of different thresholds and nrounds
+      ncomb = ceiling(100^(1 / n_classes))
+      threshold_vals = mlrMBO:::combWithSum(ncomb, n_classes) / ncomb
+      if (n_classes > 2) threshold_vals = rbind(threshold_vals, 1 / n_classes)
+      colnames(threshold_vals) = task$task.desc$class.levels
+      nrounds_vals  = quantile(seq_len(mod$learner$par.vals$nrounds), probs = c(25, 50, 75, 100)/100 type = 1)
+
+
+      # Outer product over thresholds and nrounds
+      grd = expand.grid(i = seq_len(length(nrounds_vals)), j = seq_len(nrow(threshold_vals)))
+      out = Map(function(i, j) {list(nrounds = nrounds_vals[i], threshold = threshold_vals[j, ])},
+        i = grd$i, j = grd$j)
+
+      # Compute performances
+      perfs = lapply(out, function(rw) {
+        pp = predict_classif_with_subevals(mod, .task = task, ntreelimit = rw$nrounds, predict.threshold = rw$threshold)
+        performance(pp, model = mod, task = task, measures = private$.measures)
+      })
+
+      list(y = convertListOfRowsToDataFrame(perfs),
+        x = do.call("rbind", lapply(out, function(x) c(setNames(x$nrounds, "nrounds"), x$threshold))))
+    },
     .max_nrounds = 3*10^3L,
-    .early_stopping_rounds = 20L,
-    .early_stopping_data = NULL,
-    .early_stopping_fraction = 4/5,
     .impact_encoding_boundary = 10L,
     .resample_instance = NULL,
-    .tune_threshold = TRUE,
     .nthread = NULL,
     .measures = NULL,
     .baselearner = NULL

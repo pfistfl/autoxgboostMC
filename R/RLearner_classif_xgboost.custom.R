@@ -133,18 +133,24 @@ predictLearner.classif.xgboost.custom = function(.learner, .model, .newdata, ...
   }
 }
 
-predict_with_ntreelimit = function(.model, .newdata, ntreelimit) {
+predict_classif_with_subevals = function(.model, .task = NULL, .newdata, ntreelimit = NULL, predict.threshold = NULL) {
+  if (!is.null(ntreelimit)) assert_true(.model$learner$par.vals$nrounds >= ntreelimit)
+  if (is.null(.task) & missing(.newdata)) stop("Either provide newdata or a task")
+  if (missing(.newdata)) .newdata = getTaskData(.task, target.extra = TRUE)$data
   td = .model$task.desc
   m = .model$learner.model
   cls = td$class.levels
   nc = length(cls)
   .learner = .model$learner
   obj = .learner$par.vals$objective
+  if (!is.null(predict.threshold)) names(predict.threshold) = td$class.levels
 
   if (is.null(obj))
     .learner$par.vals$objective = ifelse(nc == 2L, "binary:logistic", "multi:softprob")
 
+  time.predict = mlr:::measureTime({
   p = predict(m, newdata = data.matrix(convertDataFrameCols(.newdata, ints.as.num = TRUE)), ntreelimit = ntreelimit)
+  })
 
   if (nc == 2L) { #binaryclass
     if (.learner$par.vals$objective == "multi:softprob") {
@@ -157,28 +163,34 @@ predict_with_ntreelimit = function(.model, .newdata, ntreelimit) {
       y[, 2L] = p
     }
     if (.learner$predict.type == "prob") {
-      return(y)
+      p = y
     } else {
       p = colnames(y)[max.col(y)]
       names(p) = NULL
       p = factor(p, levels = colnames(y))
-      return(p)
     }
   } else { #multiclass
     if (.learner$par.vals$objective  == "multi:softmax") {
       p = as.factor(p) #special handling for multi:softmax which directly predicts class levels
       levels(p) = cls
-      return(p)
     } else {
       p = matrix(p, nrow = length(p) / nc, ncol = nc, byrow = TRUE)
       colnames(p) = cls
       if (.learner$predict.type == "prob") {
-        return(p)
+        p = p
       } else {
         ind = max.col(p)
         cns = colnames(p)
-        return(factor(cns[ind], levels = cns))
+        p = factor(cns[ind], levels = cns)
       }
     }
   }
+
+  subset = mlr:::checkTaskSubset(NULL, size = nrow(.newdata))
+  if(is.null(.task)) id = NULL else id = subset
+  if(is.null(.task)) truth = NULL else truth = getTaskData(.task, target.extra = TRUE)$target
+  pred = makePrediction(task.desc = td, row.names = rownames(.newdata), id = id, truth = truth,
+    predict.type = .learner$predict.type, predict.threshold = predict.threshold,
+    y = p, time = time.predict)
+  return(pred)
 }
