@@ -56,7 +56,7 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
 
     transf_tasks = self$build_transform_pipeline(task)
     private$.baselearner = self$make_baselearner_earlystop(task, nthread)
-    self$obj_fun = self$make_objective_function(transf_tasks, private$.parset, tune_threshold)
+    self$obj_fun = self$make_objective_function(transf_tasks, private$.parset, TRUE)
 
   },
   make_baselearner_earlystop = function(task, nthread) {
@@ -140,7 +140,7 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
       lrn = self$preproc_pipeline %>>% lrn
       return(lrn)
     },
-    make_objective_function = function(transf_tasks, parset, tune_threshold) {
+    make_objective_function_multicrit = function(transf_tasks, parset, tune_threshold) {
       is_thresholded_measure = sapply(private$.measures, function(x) {
         props = getMeasureProperties(x)
         any(props == "req.truth") & !any(props == "req.prob")
@@ -151,35 +151,14 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
           Deactivating threshold tuning!")
         tune_threshold = FALSE
       }
-
-      smoof::makeMultiObjectiveFunction(name = "optimizeWrapperMultiCrit",
-        fn = function(x) {
-          x = x[!vlapply(x, is.na)]
-          lrn = setHyperPars(private$.baselearner, par.vals = x)
-          mod = train(lrn, transf_tasks$train_task)
-          pred = predict(mod, transf_tasks$test_task)
-          nrounds = get_best_iteration(mod)
-          # For now we tune threshold of first applicable measure.
-          if (tune_threshold && getTaskType(transf_tasks$train_task) == "classif") {
-            tune.res = tuneThreshold(pred = pred, measure = private$.measures[is_thresholded_measure][[1]])
-
-            if (length(private$.measures[-which(is_thresholded_measure)[1]]) > 0) {
-              res = performance(pred, private$.measures[-which(is_thresholded_measure)[1]], model = mod, task = transf_tasks$task.test)
-              res = c(res, tune.res$perf)
-            } else {
-              res = tune.res$perf
-            }
-            attr(res, "extras") = list(nrounds = nrounds, .threshold = tune.res$th)
-          } else {
-            res = performance(pred, private$.measures, model = mod, task = transf_tasks$test_task)
-            attr(res, "extras") = list(nrounds = nrounds)
-          }
-          return(res)
-        },
-        par.set = parset, noisy = FALSE, has.simple.signature = FALSE, minimize = self$measure_minimize,
-        n.objectives = length(private$.measures)
-      )
-    },
+      function(x) {
+        x = x[!vlapply(x, is.na)]
+        lrn = setHyperPars(private$.baselearner, par.vals = x)
+        mod = train(lrn, transf_tasks$train_task)
+        pred = predict(mod, transf_tasks$test_task)
+        return(res)
+      }
+    }
   ),
   private = list(
     .max_nrounds = 3*10^3L,
@@ -246,3 +225,4 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
     }
   )
 )
+
