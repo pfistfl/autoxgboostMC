@@ -19,12 +19,28 @@ get_best_iteration = function(mod) {
   getLearnerModel(mod, more.unwrap = TRUE)$best_iteration
 }
 
-get_pareto_front = function(x, y, ps, measures) {
+get_pareto_set = function(opt_state, xy, ps, measures) {
   minimize = vlapply(measures, function(x) x$minimize)
   y.names = vcapply(measures, function(x) x$id)
   op = makeOptPathDF(par.set = ps, y.names = y.names, minimize = minimize)
-  for (i in seq_len(nrow(x))) addOptPathEl(op = op, x = convertRowsToList(x)[[i]], y = convertRowsToList(y)[[i]])
-  getOptPathParetoFront(op, index = TRUE)
+  for (i in seq_len(nrow(xy$x))) {
+    addOptPathEl(op = op, x = convertRowsToList(xy$x)[[i]], y = xy$y[[i]])
+  }
+  odf = as.data.frame(opt_state$opt.path)
+  for (j in seq_len(nrow(odf))) {
+    addOptPathEl(op = op, x = convertRowsToList(odf[, colnames(xy$x)])[[j]], y = unlist(odf[j, y.names]))
+  }
+  idx = intersect(seq_len(nrow(xy$x)), getOptPathParetoFront(op, index = TRUE))
+  list(x = xy$x[idx, ], y = xy$y[idx])
+}
+
+get_subevals = function(prop, y) {
+  x = prop$prop.points
+  x$nrounds = NULL
+  x = cbind(x, nrounds = attr(y, "extra")$.subevals$x$ntreelimit)
+  x$threshold = nrounds = attr(y, "extra")$.subevals$x$V2
+  y = attr(y, "extra")$.subevals$y
+  return(list(x = x[, colnames(prop$prop.points)], y = convertRowsToList(y)))
 }
 
 # This generates a preprocessing pipeline to handle categorical features

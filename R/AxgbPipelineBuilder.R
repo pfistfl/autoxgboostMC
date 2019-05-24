@@ -139,7 +139,7 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
         pred = setThreshold(pred, x$threshold)
         res = performance(pred, model = mod, task = task, measures = private$.measures)
 
-        if (subevals) attr(res, "extras") = list(subevals = private$get_subevals(mod, transf_tasks$test_task, private$.measures))
+        if (subevals) attr(res, "extras") = list(.subevals = private$get_subevals(mod, transf_tasks$test_task, private$.measures))
         return(res)
       },
       par.set = private$.parset, n.objectives = length(private$.measures), minimize = self$measures_minimize,
@@ -157,7 +157,7 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
         threshold_vals = rbind(threshold_vals, 1 / n_classes)
         colnames(threshold_vals) = task$task.desc$class.levels
       } else {
-        threshold_vals = threshold_vals[, 1]
+        threshold_vals = threshold_vals[, 1, drop = FALSE]
       }
 
       thresholds = BBmisc::convertRowsToList(threshold_vals, name.vector = TRUE)

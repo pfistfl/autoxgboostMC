@@ -46,7 +46,7 @@ This runs the AutoML process.
 
 ```{r}
 axgb = AutoxgboostMC$new(train.task, measures = list(auc))
-axgb$fit(time_budget = 15L)
+axgb$fit(time_budget = 10L)
 ```
 
 We can print the result:
@@ -84,8 +84,8 @@ axgb$final_model
 ## Scenario 2: Optimizing Accuracy and Prediction Speed
 
 ```{r}
-axgb = AutoxgboostMC$new(train.task, measures = list(auc, timetrain))
-axgb$fit(time_budget = 10L)
+axgb = AutoxgboostMC$new(train.task, measures = list(acc, timetrain))
+axgb$fit(time_budget = 20L)
 ```
 
 And visualize:
