@@ -34,3 +34,30 @@ list(
   y = convertListOfRowsToDataFrame(perfs),
   x = do.call("rbind", lapply(out, function(x) c(setNames(x$nrounds, "nrounds"), x$threshold)))
 )
+
+
+# Earlier Hyperpars
+early_stopping_rounds = function(value) {
+  if (missing(value)) {
+    return(self$pipeline$early_stopping_rounds)
+  } else {
+    self$pipeline$early_stopping_rounds = assert_integerish(value, lower = 1L, len = 1L)
+    return(self)
+  }
+},
+early_stopping_fraction = function(value) {
+  if (missing(value)) {
+    return(self$pipeline$early_stopping_fraction)
+  } else {
+    self$pipeline$early_stopping_fraction = assert_numeric(value, lower = 0, upper = 1, len = 1L)
+    return(self)
+  }
+},
+    tune_threshold = function(value) {
+  if (missing(value)) {
+    return(self$pipeline$tune_threshold)
+  } else {
+    self$pipeline$tune_threshold = assert_flag(value)
+    return(self)
+  }
+},

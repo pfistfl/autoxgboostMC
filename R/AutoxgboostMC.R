@@ -171,7 +171,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
 
   active = list(
     # AB for optimizer --------------------------------------------------------------------
-    opt_path = function() {self$optimizer$opt_path},
+    opt_path = function() {self$optimizer$opt_state$opt_path},
     opt_result = function() {self$optimizer$opt_result},
     parset = function(value) {
       if (missing(value)) {
@@ -181,16 +181,6 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         private$.parset = assert_class(value, "ParamSet", null.ok = TRUE)
         self$optimizer$parset = assert_class(value, "ParamSet", null.ok = TRUE)
         return(self)
-      }
-    },
-    early_stopping_measure = function(value) {
-      if (missing(value)) {
-        self$measures[[1]]
-      } else {
-        measure_ids = sapply(self$measures, function(x)  x$id)
-        assert_list(value, types = "Measure", null.ok = TRUE)
-        self$measures = c(value, self$measures[-which(value$id == measure_ids)])
-        messagef("Setting %s as early stopping measure!", value$id)
       }
     },
     is_multicrit = function() {
@@ -212,35 +202,11 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         return(self)
       }
     },
-    early_stopping_rounds = function(value) {
-      if (missing(value)) {
-        return(self$pipeline$early_stopping_rounds)
-      } else {
-        self$pipeline$early_stopping_rounds = assert_integerish(value, lower = 1L, len = 1L)
-        return(self)
-      }
-    },
-    early_stopping_fraction = function(value) {
-      if (missing(value)) {
-        return(self$pipeline$early_stopping_fraction)
-      } else {
-        self$pipeline$early_stopping_fraction = assert_numeric(value, lower = 0, upper = 1, len = 1L)
-        return(self)
-      }
-    },
     impact_encoding_boundary = function(value) {
       if (missing(value)) {
         return(self$pipeline$impact_encoding_boundary)
       } else {
         self$pipeline$impact_encoding_boundary = assert_integerish(value, lower = 1L, len = 1L)
-        return(self)
-      }
-    },
-    tune_threshold = function(value) {
-      if (missing(value)) {
-        return(self$pipeline$tune_threshold)
-      } else {
-        self$pipeline$tune_threshold = assert_flag(value)
         return(self)
       }
     },
@@ -278,7 +244,6 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     .resample_instance = NULL,
     .logger = NULL,
     .watch = NULL,
-    .baselearner = NULL,
     .parset = NULL,
     set_parset = function(ps) {
       private$.parset = ps

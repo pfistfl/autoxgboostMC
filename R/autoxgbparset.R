@@ -22,13 +22,13 @@ NULL
 autoxgbparset = makeParamSet(
   makeNumericParam("eta", lower = 0.01, upper = 0.2),
   makeNumericParam("gamma", lower = -7, upper = 6, trafo = function(x) 2^x),
-  makeIntegerParam("max_depth", lower = 3, upper = 20),
+  makeIntegerParam("max_depth", lower = 2, upper = 20),
   makeNumericParam("colsample_bytree", lower = 0.5, upper = 1),
   makeNumericParam("colsample_bylevel", lower = 0.5, upper = 1),
   makeNumericParam("lambda", lower = -10, upper = 10, trafo = function(x) 2^x),
   makeNumericParam("alpha", lower = -10, upper = 10, trafo = function(x) 2^x),
   makeNumericParam("subsample", lower = 0.5, upper = 1)
-)
+  )
 
 autoxgbparset.mixed = makeParamSet(
   makeDiscreteParam("booster", values = c("gbtree", "gblinear", "dart")),
@@ -49,3 +49,8 @@ autoxgbparset.mixed = makeParamSet(
   makeNumericParam("alpha", lower = -10, upper = 10, trafo = function(x) 2^x),
   makeNumericParam("subsample", lower = 0.5, upper = 1)
 )
+
+# Parameter values random forest
+parvals_rf = data.frame(eta = 0.2, gamma = 0, max_depth = 12, colsample_bytree =  0.50,
+  colsample_bylevel = 0.8, lambda =  0, alpha =  -10, subsample = 0.5, nrounds =  1,
+  scale_pos_weight =  1, num_parallel_tree = 500L)

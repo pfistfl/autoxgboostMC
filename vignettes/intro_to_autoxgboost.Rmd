@@ -21,7 +21,6 @@ knitr::opts_chunk$set(
 ```{r}
 library(mlr)
 # library(autoxgboostMC)
-
 devtools::load_all()
 
 # Split into train and test data set.
@@ -32,7 +31,7 @@ test.task = subsetTask(pid.task, test.idx)
 ```
 
 
-## Scenario 1: Optimizing a single mesure (Area under the Curve) for a given task.
+## Scenario 1: Optimizing a single measure (Area under the Curve) for a given task.
 
 This scenario reflects the traditional use-case in AutoML scenarios.
 Given a dataset we want to obtain a model that optimizes a given performance measure.
@@ -97,6 +96,7 @@ axgb$plot_pareto_front()
 axgb$plot_parallel_coordinates()
 axgb$plot_opt_result()
 ```
+
 
 ### Limiting the range of random projections in `parEgo`.
 
@@ -165,7 +165,7 @@ As a user usually can not look at all intermediate results, we might also want t
 ```{r, eval = FALSE}
 axgb = AutoxgboostMC$new(train.task, measures = list(auc, timepredict))
 # Either via setter function
-axgb$set_hyperpars(list("early_stopping_rounds" = 25L))
+axgb$set_hyperpars(list("" = 25L))
 # Or active bindings
 axgb$early_stopping_rounds = 5
 ```
