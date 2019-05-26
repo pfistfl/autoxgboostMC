@@ -137,7 +137,7 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
         mod = train(lrn, transf_tasks$train_task)
         pred = predict(mod, transf_tasks$test_task)
         pred = setThreshold(pred, x$threshold)
-        res = performance(pred, model = mod, task = task, measures = private$.measures)
+        res = performance(pred, model = mod, task = transf_tasks$test_task, measures = private$.measures)
 
         if (subevals) attr(res, "extras") = list(.subevals = private$get_subevals(mod, transf_tasks$test_task, private$.measures))
         return(res)

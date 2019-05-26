@@ -148,7 +148,7 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
     .mbo_learner = NULL,
     fit_iteration = function(plot, subevals = TRUE) {
       log4r::debug(private$.logger, catf("Fitting Iteration %s", private$.watch$current_iter))
-      prop = suppressWarnings(proposePoints(self$opt_state))
+      prop = proposePoints(self$opt_state)
       rownames(prop$prop.points) = NULL
       x = trafoValue(private$.parset, dfRowsToList(df = prop$prop.points, par.set = self$parset)[[1]])
       y = private$.obj_fun(x, subevals = TRUE)
