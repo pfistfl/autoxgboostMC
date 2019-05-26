@@ -90,11 +90,6 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
       assert_true(!is.null(self$opt_result))
       pars = trafoValue(self$parset, self$opt_result$x)
       pars = pars[!vlapply(pars, is.na)]
-
-      nrounds = self$get_best("nrounds")
-      threshold = self$get_best(".threshold")
-      pars$nrounds = nrounds
-      pars$threshold = threshold
       return(pars)
     },
     set_possible_projections = function(measure_weights) {
@@ -157,6 +152,8 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
         xy_pareto = get_subevals(prop, y)
         if (length(y) >= 2L) {
          xy_pareto = get_pareto_set(self$opt_state, xy_pareto, private$.parset, private$.measures)
+        } else {
+          xy_pareto = get_univariate_set(self$opt_state, xy_pareto, private$.measures)
         }
         if (length(xy_pareto$y) > 0) updateSMBO(self$opt_state, x = xy_pareto$x, y = xy_pareto$y)
       }
@@ -198,20 +195,6 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
         opt_result$y = as.list(opt_result$opt.path$env$path[self$get_best_ind(opt_result), self$measure_ids])
       }
       return(opt_result)
-    },
-    get_pareto_set = function(x_new, y) {
-      # Add evals and subevals together
-      x_subeval = data.frame(attr(y, "extras")$subevals$x)
-      x_new = cbind(x_new[-which(colnames(x) == "nrounds")], nrounds = x_subeval$ntreelimit)
-      if (TRUE) x_new$threshold = x_subeval$pos
-      x_new = rbind(x_new, prop$prop.poinds)
-
-      y_subeval = data.frame(attr(y, "extras")$subevals$y)
-      y_new = rbind(y_subeval, y)
-
-      # And obtain the pareto front
-      pareto.set = get_pareto_front(x_new, y_new, private$.parset, private$.measures)
-      list(x = NULL, y = NULL)
     }
   ),
   active = list(

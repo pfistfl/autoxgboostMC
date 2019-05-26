@@ -82,20 +82,20 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     task = NULL,
     measures = NULL,
 
-    iterations = NULL,
-    time_budget = NULL,
-
+    pipeline = NULL,
     obj_fun = NULL,
 
-    pipeline = NULL,
     optimizer = NULL,
+    iterations = NULL,
+    time_budget = NULL,
 
     final_learner = NULL,
     final_model = NULL,
 
     initialize = function(task, measures = NULL, parset = NULL, nthread = NULL,
       pipeline  = AxgbPipelineBuilderXGB$new(),
-      optimizer = AxgbOptimizerSMBO$new()) {
+      optimizer = AxgbOptimizerSMBO$new()
+      ) {
 
       self$task = assert_class(task, "SupervisedTask")
       assert_list(measures, types = "Measure", null.ok = TRUE)
@@ -108,7 +108,6 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       # Construct pipeline and learner
       self$pipeline = assert_class(pipeline, "AxgbPipelineBuilder")
       self$pipeline$configure(logger = private$.logger, parset = parset)
-
       obj_fun = self$pipeline$get_objfun(self$task, self$measures, parset, nthread)
       private$.parset = attr(obj_fun, "par.set")
 
@@ -126,7 +125,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       self$optimizer$fit(iterations, time_budget, plot)
 
       # Create final model
-      self$final_learner = self$pipeline_builder$build_final_learner(self$optimizer$get_opt_pars())
+      self$final_learner = self$pipeline$build_final_learner(self$optimizer$get_opt_pars())
       if(fit_final_model) self$fit_final_model()
     },
     predict = function(newdata) {
@@ -141,12 +140,10 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       catf("Trained: %s", ifelse(is.null(self$opt_result), "no", "yes"))
       print(self$optimizer)
       catf("\n\nPreprocessing pipeline:")
-      print(self$pipeline_builder$preproc_pipeline)
+      print(self$pipeline$preproc_pipeline)
     },
-
-    # MBO --------------------------------------------------------------------------------
     fit_final_model = function() {
-      if(is.null(self$final_learner)) self$pipeline_builder$build_final_learner()
+      if(is.null(self$final_learner)) self$pipeline$build_final_learner()
       self$final_model = train(self$final_learner, self$task)
     },
 
@@ -161,7 +158,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       assert_choice(param, names(ps$pars))
       if(!is.null(lower)) ps$pars[[param]]$lower = assert_number(lower)
       if(!is.null(upper)) ps$pars[[param]]$upper = assert_number(upper)
-      private$.parset = ps
+      private$set_parset(ps)
       invisible(self)
     },
     plot_pareto_front = plot_pareto_front,
@@ -209,57 +206,57 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     # Hyperparameters for the Pipeline Builder Class -------------------------------------
     max_nrounds = function(value) {
       if (missing(value)) {
-        return(self$pipeline_builder$max_nrounds)
+        return(self$pipeline$max_nrounds)
       } else {
-        self$pipeline_builder$max_nrounds = assert_integerish(value, lower = 1L, len = 1L)
+        self$pipeline$max_nrounds = assert_integerish(value, lower = 1L, len = 1L)
         return(self)
       }
     },
     early_stopping_rounds = function(value) {
       if (missing(value)) {
-        return(self$pipeline_builder$early_stopping_rounds)
+        return(self$pipeline$early_stopping_rounds)
       } else {
-        self$pipeline_builder$early_stopping_rounds = assert_integerish(value, lower = 1L, len = 1L)
+        self$pipeline$early_stopping_rounds = assert_integerish(value, lower = 1L, len = 1L)
         return(self)
       }
     },
     early_stopping_fraction = function(value) {
       if (missing(value)) {
-        return(self$pipeline_builder$early_stopping_fraction)
+        return(self$pipeline$early_stopping_fraction)
       } else {
-        self$pipeline_builder$early_stopping_fraction = assert_numeric(value, lower = 0, upper = 1, len = 1L)
+        self$pipeline$early_stopping_fraction = assert_numeric(value, lower = 0, upper = 1, len = 1L)
         return(self)
       }
     },
     impact_encoding_boundary = function(value) {
       if (missing(value)) {
-        return(self$pipeline_builder$impact_encoding_boundary)
+        return(self$pipeline$impact_encoding_boundary)
       } else {
-        self$pipeline_builder$impact_encoding_boundary = assert_integerish(value, lower = 1L, len = 1L)
+        self$pipeline$impact_encoding_boundary = assert_integerish(value, lower = 1L, len = 1L)
         return(self)
       }
     },
     tune_threshold = function(value) {
       if (missing(value)) {
-        return(self$pipeline_builder$tune_threshold)
+        return(self$pipeline$tune_threshold)
       } else {
-        self$pipeline_builder$tune_threshold = assert_flag(value)
+        self$pipeline$tune_threshold = assert_flag(value)
         return(self)
       }
     },
     nthread = function(value) {
       if (missing(value)) {
-        return(self$pipeline_builder$nthread)
+        return(self$pipeline$nthread)
       } else {
-        self$pipeline_builder$nthread = assert_integerish(value, lower = 1, len = 1L, null.ok = TRUE)
+        self$pipeline$nthread = assert_integerish(value, lower = 1, len = 1L, null.ok = TRUE)
         return(self)
       }
     },
     resample_instance = function(value) {
       if (missing(value)) {
-        return(self$pipeline_builder$resample_instance)
+        return(self$pipeline$resample_instance)
       } else {
-        self$pipeline_builder$resample_instance = assert_class(value, "ResampleInstance", null.ok = TRUE)
+        self$pipeline$resample_instance = assert_class(value, "ResampleInstance", null.ok = TRUE)
         return(self)
       }
     },
@@ -270,7 +267,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
         assert_class(value, "logger")
         # Push the logger to all fields
         private$.logger = value
-        self$pipeline_builder$logger = value
+        self$pipeline$logger = value
         self$optimizer$logger = value
         return(self)
       }
@@ -282,7 +279,11 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     .logger = NULL,
     .watch = NULL,
     .baselearner = NULL,
-    .parset = NULL
+    .parset = NULL,
+    set_parset = function(ps) {
+      private$.parset = ps
+      self$optimizer$parset = ps
+    }
   )
 )
 

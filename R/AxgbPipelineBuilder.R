@@ -56,9 +56,18 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
     assert_class(task, "SupervisedTask")
     assert_class(parset, "ParamSet", null.ok = TRUE)
     private$.measures = assert_list(measures, types = "Measure", null.ok = TRUE)
+
+    # Only adjust threshold if any of the measures uses the threshold
+    private$.has_thresholded_measure = any(sapply(measures, function(x) {
+      props = mlr::getMeasureProperties(x)
+      any(props == "req.truth") & !any(props == "req.prob")
+    }))
+
+    # Create the parset
     private$.parset = coalesce(parset, autoxgboostMC::autoxgbparset)
     private$.parset = c(private$.parset, private$make_subeval_parset(task))
 
+    # Create Pipeline + Objective function
     self$preproc_pipeline = self$build_pipeline(task)
     transf_tasks = self$transform_with_pipeline(task)
     private$.baselearner = self$make_baselearner(task, nthread)
@@ -118,10 +127,11 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
     },
     build_final_learner = function(pars) {
       if (self$task_type == "classif") {
+        threshold = pars$threshold
+        pars$threshold = NULL
         lrn = makeLearner("classif.xgboost.custom", nrounds = pars$nrounds,
           objective = self$baselearner$par.vals$objective,
-          predict.type = self$baselearner$predict.type,
-          predict.threshold = pars$threshold)
+          predict.type = "prob", predict.threshold = threshold)
       } else {
         lrn = makeLearner("regr.xgboost.custom", nrounds = nrounds, objective = self$baselearner$par.vals$objective)
       }
@@ -136,7 +146,7 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
         lrn = setHyperPars(private$.baselearner, par.vals = x[vlapply(names(x), `!=`, "threshold")])
         mod = train(lrn, transf_tasks$train_task)
         pred = predict(mod, transf_tasks$test_task)
-        pred = setThreshold(pred, x$threshold)
+        if (private$.has_thresholded_measure) pred = setThreshold(pred, x$threshold)
         res = performance(pred, model = mod, task = transf_tasks$test_task, measures = private$.measures)
 
         if (subevals) attr(res, "extras") = list(.subevals = private$get_subevals(mod, transf_tasks$test_task, private$.measures))
@@ -150,18 +160,22 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
     get_subevals = function(mod, task, measures) {
       n_classes = length(task$task.desc$class.levels)
 
-      # Compute a set of different thresholds and nrounds
-      ncomb = ceiling(100^(1 / n_classes))
-      threshold_vals = mlrMBO:::combWithSum(ncomb, n_classes) / ncomb
-      if (n_classes > 2L) {
-        threshold_vals = rbind(threshold_vals, 1 / n_classes)
-        colnames(threshold_vals) = task$task.desc$class.levels
+      if (private$.has_thresholded_measure) {
+        # Compute a set of different thresholds and nrounds
+        ncomb = ceiling(1000^(1 / n_classes))
+        threshold_vals = mlrMBO:::combWithSum(ncomb, n_classes) / ncomb
+        if (n_classes > 2L) {
+          threshold_vals = rbind(threshold_vals, 1 / n_classes)
+          colnames(threshold_vals) = task$task.desc$class.levels
+        } else {
+          threshold_vals = threshold_vals[, 1, drop = FALSE]
+        }
+        thresholds = BBmisc::convertRowsToList(threshold_vals, name.vector = TRUE)
       } else {
-        threshold_vals = threshold_vals[, 1, drop = FALSE]
+        threshold_vals = NULL
       }
 
-      thresholds = BBmisc::convertRowsToList(threshold_vals, name.vector = TRUE)
-      ntreelimit_vals  = quantile(seq_len(mod$learner$par.vals$nrounds), probs = c(25, 50, 75, 100)/100, type = 1)
+      ntreelimit_vals  = quantile(seq_len(mod$learner$par.vals$nrounds), probs = c(25, 50, 75, 90, 100) / 100, type = 1)
 
       # Compute performances
       lst = lapply(ntreelimit_vals, function(ntreelimit) {
@@ -169,27 +183,36 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
         mod$learner$par.vals$ntreelimit = ntreelimit
         prd = predict(mod, task = task)
         # Predict for different thresholds
-        do.call("rbind", lapply(thresholds, function(threshold) {
-          prd = setThreshold(prd, threshold)
-          performance(prd, model = mod, measures = measures)
-        }))
+        if (private$.has_thresholded_measure) {
+          do.call("rbind", lapply(thresholds, function(threshold) {
+            prd = setThreshold(prd, threshold)
+            performance(prd, model = mod, task = task, measures = measures)
+          }))
+        } else {
+          performance(prd, model = mod, task = task, measures = measures)
+        }
       })
       list(
-        y = do.call("rbind", lst),
+        y = unique(do.call("rbind", lst)),
         x = data.frame(do.call("rbind", lapply(ntreelimit_vals, function(x) cbind(ntreelimit = x, threshold_vals))))
       )
     },
     make_subeval_parset = function(task) {
       threshold_len = length(task$task.desc$class.levels)
       if (threshold_len == 2L) threshold_len = 1L
-      makeParamSet(
-        makeNumericVectorParam("threshold", lower = 0, upper = 1, len = threshold_len, trafo = function(x) {
-         if(length(x) > 1L) x = x / sum(x)
-         return(x)
-        }),
+      ps = makeParamSet(
         makeIntegerParam(id = "nrounds", lower = 1L, upper = private$.max_nrounds)
       )
+      if (private$.has_thresholded_measure) {
+        ps = c(ps, makeParamSet(
+          makeNumericVectorParam("threshold", lower = 0, upper = 1, len = threshold_len, trafo = function(x) {
+            if(length(x) > 1L) x = x / sum(x)
+              return(x)
+        })))
+      }
+      return(ps)
     },
+    .has_thresholded_measure = NULL,
     .max_nrounds = 300L,
     .impact_encoding_boundary = 10L,
     .resample_instance = NULL,
@@ -225,13 +248,6 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
         return(private$.impact_encoding_boundary)
       } else {
         private$.impact_encoding_boundary = assert_numeric(value, lower = 0, upper = 1, len = 1L)
-      }
-    },
-    tune_threshold = function(value) {
-      if (missing(value)) {
-        return(private$.tune_threshold)
-      } else {
-        private$.tune_threshold = assert_flag(value)
       }
     },
     nthread = function(value) {

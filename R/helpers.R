@@ -19,6 +19,8 @@ get_best_iteration = function(mod) {
   getLearnerModel(mod, more.unwrap = TRUE)$best_iteration
 }
 
+# Obtain the points from a set xy that are on the pareto front
+# given earlier evaluation contained in an opt_state
 get_pareto_set = function(opt_state, xy, ps, measures) {
   minimize = vlapply(measures, function(x) x$minimize)
   y.names = vcapply(measures, function(x) x$id)
@@ -32,6 +34,22 @@ get_pareto_set = function(opt_state, xy, ps, measures) {
   }
   idx = intersect(seq_len(nrow(xy$x)), getOptPathParetoFront(op, index = TRUE))
   list(x = xy$x[idx, ], y = xy$y[idx])
+}
+
+
+# Obtain the points from a set xy that are in the 90% quantile
+# given earlier evaluation contained in an opt_state.
+get_univariate_set = function(opt_state, xy, measures) {
+  minimize = vlapply(measures, function(x) x$minimize)
+  y.names = vcapply(measures, function(x) x$id)
+  odf = as.data.frame(opt_state$opt.path)
+  if (minimize) {
+    idx = which(xy$y <= quantile(c(odf[, y.names], unlist(xy$y)), 0.1))
+  } else {
+    idx = which(xy$y >= quantile(c(odf[, y.names], unlist(xy$y)), 0.9))
+  }
+  idx = intersect(seq_len(nrow(xy$x)), idx)
+  list(x = xy$x[idx, ], y = xy$y[idx]) 
 }
 
 get_subevals = function(prop, y) {

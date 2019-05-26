@@ -20,7 +20,7 @@ knitr::opts_chunk$set(
 
 ```{r}
 library(mlr)
-library(autoxgboostMC)
+# library(autoxgboostMC)
 
 devtools::load_all()
 
@@ -136,7 +136,6 @@ axgb$plot_pareto_front()
 ```{r, eval = FALSE}
 age_fairf1 = setMeasurePars(fairf1, grouping = function(df) as.factor(df$age > 30))
 axgb = AutoxgboostMC$new(train.task, measures = list(acc, age_fairf1))
-axgb$tune_threshold = FALSE
 axgb$fit(time_budget = 30L)
 p = axgb$predict(test.task)
 ```
