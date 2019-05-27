@@ -1,7 +1,7 @@
 #' @title Fit and optimize a xgboost model for multiple criteria
 #'
 #' @include AxgbOptimizer.R
-#' @include AxgbPipelineBuilder.R
+#' @include AxgbPipeline.R
 #' @include plot_axgb_result.R
 #' @include helpers.R
 #'
@@ -93,7 +93,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     final_model = NULL,
 
     initialize = function(task, measures = NULL, parset = NULL, nthread = NULL,
-      pipeline  = AxgbPipelineBuilderXGB$new(),
+      pipeline  = AxgbPipelineXGB$new(),
       optimizer = AxgbOptimizerSMBO$new()
       ) {
 
@@ -106,14 +106,13 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       private$.logger = log4r::logger(threshold = "WARN")
 
       # Construct pipeline and learner
-      self$pipeline = assert_class(pipeline, "AxgbPipelineBuilder")
+      self$pipeline = assert_class(pipeline, "AxgbPipeline")
       self$pipeline$configure(logger = private$.logger, parset = parset)
       obj_fun = self$pipeline$get_objfun(self$task, self$measures, parset, nthread)
-      private$.parset = attr(obj_fun, "par.set")
 
       # Initialize Optimizer
       self$optimizer = assert_class(optimizer, "AxgbOptimizer")
-      self$optimizer$configure(measures = self$measures, obj_fun = obj_fun, parset = private$.parset, logger = private$.logger)
+      self$optimizer$configure(measures = self$measures, obj_fun = obj_fun, parset = attr(obj_fun, "par.set"), logger = private$.logger)
     },
     fit = function(iterations = 160L, time_budget = 3600L, fit_final_model = FALSE, plot = TRUE) {
       assert_integerish(iterations)
@@ -154,11 +153,11 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       invisible(self)
     },
     set_parset_bounds = function(param, lower = NULL, upper = NULL) {
-      ps = private$.parset
+      ps = self$parset
       assert_choice(param, names(ps$pars))
       if(!is.null(lower)) ps$pars[[param]]$lower = assert_number(lower)
       if(!is.null(upper)) ps$pars[[param]]$upper = assert_number(upper)
-      private$set_parset(ps)
+      self$parset = ps
       invisible(self)
     },
     plot_pareto_front = plot_pareto_front,
@@ -171,16 +170,11 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
 
   active = list(
     # AB for optimizer --------------------------------------------------------------------
-    opt_path = function() {self$optimizer$opt_state$opt_path},
-    opt_result = function() {self$optimizer$opt_result},
     parset = function(value) {
       if (missing(value)) {
-        return(private$.parset)
+        attr(self$optimizer$obj_fun, "par.set" )
       } else {
-        # FIXME: We set the Parset at two positions. This is suboptimal
-        private$.parset = assert_class(value, "ParamSet", null.ok = TRUE)
-        self$optimizer$parset = assert_class(value, "ParamSet", null.ok = TRUE)
-        return(self)
+        attr(self$optimizer$obj_fun, "par.set" ) = assert_class(value, "ParamSet", null.ok = TRUE)
       }
     },
     is_multicrit = function() {
@@ -193,39 +187,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       sapply(self$measures, function(x) x$minimize)
     },
 
-    # Hyperparameters for the Pipeline Builder Class -------------------------------------
-    max_nrounds = function(value) {
-      if (missing(value)) {
-        return(self$pipeline$max_nrounds)
-      } else {
-        self$pipeline$max_nrounds = assert_integerish(value, lower = 1L, len = 1L)
-        return(self)
-      }
-    },
-    impact_encoding_boundary = function(value) {
-      if (missing(value)) {
-        return(self$pipeline$impact_encoding_boundary)
-      } else {
-        self$pipeline$impact_encoding_boundary = assert_integerish(value, lower = 1L, len = 1L)
-        return(self)
-      }
-    },
-    nthread = function(value) {
-      if (missing(value)) {
-        return(self$pipeline$nthread)
-      } else {
-        self$pipeline$nthread = assert_integerish(value, lower = 1, len = 1L, null.ok = TRUE)
-        return(self)
-      }
-    },
-    resample_instance = function(value) {
-      if (missing(value)) {
-        return(self$pipeline$resample_instance)
-      } else {
-        self$pipeline$resample_instance = assert_class(value, "ResampleInstance", null.ok = TRUE)
-        return(self)
-      }
-    },
+    # Hyperparameters for the Pipeline Class -------------------------------------
     logger = function(value) {
         if (missing(value)) {
         return(private$.logger)
@@ -241,14 +203,8 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
     watch = function() {private$.watch}
   ),
   private = list(
-    .resample_instance = NULL,
     .logger = NULL,
-    .watch = NULL,
-    .parset = NULL,
-    set_parset = function(ps) {
-      private$.parset = ps
-      self$optimizer$parset = ps
-    }
+    .watch = NULL
   )
 )
 

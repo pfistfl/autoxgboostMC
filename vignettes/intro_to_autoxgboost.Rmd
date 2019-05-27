@@ -63,6 +63,8 @@ axgb$fit(time_budget = 5L)
 And then use the resulting model to predcit on our test data.
 
 ```{r}
+# Fit a model from the best
+axgb$fit_final_model()
 axgb$predict(test.task)
 ```
 
@@ -83,6 +85,7 @@ axgb$final_model
 ## Scenario 2: Optimizing Accuracy and Prediction Speed
 
 ```{r}
+devtools::load_all()
 axgb = AutoxgboostMC$new(train.task, measures = list(acc, timetrain))
 axgb$fit(time_budget = 20L)
 ```

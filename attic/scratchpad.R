@@ -61,3 +61,34 @@ early_stopping_fraction = function(value) {
     return(self)
   }
 },
+
+   max_nrounds = function(value) {
+      if (missing(value)) {
+        return(self$pipeline$max_nrounds)
+      } else {
+        self$pipeline$max_nrounds = assert_integerish(value, lower = 1L, len = 1L)
+      }
+    },
+    impact_encoding_boundary = function(value) {
+      if (missing(value)) {
+        return(self$pipeline$impact_encoding_boundary)
+      } else {
+        self$pipeline$impact_encoding_boundary = assert_integerish(value, lower = 1L, len = 1L)
+      }
+    },
+    nthread = function(value) {
+      if (missing(value)) {
+        return(self$pipeline$nthread)
+      } else {
+        self$pipeline$nthread = assert_integerish(value, lower = 1, len = 1L, null.ok = TRUE)
+        return(self)
+      }
+    },
+    resample_instance = function(value) {
+      if (missing(value)) {
+        return(self$pipeline$resample_instance)
+      } else {
+        self$pipeline$resample_instance = assert_class(value, "ResampleInstance", null.ok = TRUE)
+        return(self)
+      }
+    },

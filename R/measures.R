@@ -23,7 +23,7 @@ NULL
 #' Absolute differences of Positive Rate between groups
 #'
 #' @export
-fairpr = mlr::makeMeasure(id = "fairness.pr", minimize = TRUE, properties = c("classif", "response", "req.task"),
+fairpr = mlr::makeMeasure(id = "fairness.pr", minimize = TRUE, properties = c("classif", "response", "req.task", "req.pred", "req.truth"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
     groups = get_grouping(task, extra.args, 2L)
@@ -39,7 +39,7 @@ fairpr = mlr::makeMeasure(id = "fairness.pr", minimize = TRUE, properties = c("c
 #' Absolute differences of F1 Scores between groups
 #' See Hardt et al, 2016: https://arxiv.org/pdf/1610.02413.pdf
 #' @export
-fairf1 = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("classif", "response", "req.task"),
+fairf1 = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("classif", "response", "req.task", "req.pred", "req.truth"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
     groups = get_grouping(task, pred, extra.args, 2L)
@@ -53,7 +53,7 @@ fairf1 = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("c
 #' Absolute differences of False Positive Rates between groups
 #' See Hardt et al, 2016: https://arxiv.org/pdf/1610.02413.pdf
 #' @export
-fairfpr = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("classif", "response", "req.task"),
+fairfpr = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("classif", "response", "req.task", "req.pred", "req.truth"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
     groups = get_grouping(task, extra.args, 2L)
@@ -65,7 +65,7 @@ fairfpr = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("
 )
 #' Variance of F1 Scores between groups
 #' @export
-varf1 = mlr::makeMeasure(id = "fairness.varf1", minimize = TRUE, properties = c("classif", "response", "req.task"),
+varf1 = mlr::makeMeasure(id = "fairness.varf1", minimize = TRUE, properties = c("classif", "response", "req.task", "req.pred", "req.truth"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
     groups = get_grouping(task, extra.args)
@@ -83,7 +83,7 @@ varf1 = mlr::makeMeasure(id = "fairness.varf1", minimize = TRUE, properties = c(
 
 #' Absolute differences of Positive Predictive Value between groups
 #' @export
-fairppv = mlr::makeMeasure(id = "fairness.ppv", minimize = TRUE, properties = c("classif", "response", "req.task"),
+fairppv = mlr::makeMeasure(id = "fairness.ppv", minimize = TRUE, properties = c("classif", "response", "req.task", "req.pred", "req.truth"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
     groups = get_grouping(task, extra.args, 2L)

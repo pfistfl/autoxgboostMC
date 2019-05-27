@@ -49,7 +49,7 @@ get_univariate_set = function(opt_state, xy, measures) {
     idx = which(xy$y >= quantile(c(odf[, y.names], unlist(xy$y)), 0.9))
   }
   idx = intersect(seq_len(nrow(xy$x)), idx)
-  list(x = xy$x[idx, ], y = xy$y[idx]) 
+  list(x = xy$x[idx, ], y = xy$y[idx])
 }
 
 get_subevals = function(prop, y) {

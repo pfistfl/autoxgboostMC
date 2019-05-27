@@ -1,7 +1,7 @@
 #' @title Abstract Base Class
-#' @seealso \code{\link{AxgbPipelineBuilderXGB}}
+#' @seealso \code{\link{AxgbPipelineXGB}}
 #' @export
-AxgbPipelineBuilder = R6::R6Class("AxgbPipelineBuilder",
+AxgbPipeline = R6::R6Class("AxgbPipeline",
   public = list(
     initialize = function() {stop("Abstract Base class!")},
     configure = function(logger, parset) {
@@ -43,8 +43,8 @@ AxgbPipelineBuilder = R6::R6Class("AxgbPipelineBuilder",
 #' @param max_nrounds [\code{integer(1)}]\cr
 #'   Maximum number of allowed boosting iterations. Default is \code{3000}.
 #' @export
-AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
-  inherit = AxgbPipelineBuilder,
+AxgbPipelineXGB = R6::R6Class("AxgbPipelineXGB",
+  inherit = AxgbPipeline,
   public = list(
   task_type = NULL,
   baselearner = NULL,
@@ -149,98 +149,27 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
         if (private$.has_thresholded_measure) pred = setThreshold(pred, x$threshold)
         res = performance(pred, model = mod, task = transf_tasks$test_task, measures = private$.measures)
 
-        if (subevals) attr(res, "extras") = list(.subevals = private$get_subevals(mod, transf_tasks$test_task, private$.measures))
+        if (subevals) attr(res, "extras") = list(.subevals = private$make_subevals(mod, transf_tasks$test_task, private$.measures))
         return(res)
       },
       par.set = private$.parset, n.objectives = length(private$.measures), minimize = self$measures_minimize,
       noisy = FALSE, has.simple.signature = FALSE)
     }
   ),
-  private = list(
-    get_subevals = function(mod, task, measures) {
-      n_classes = length(task$task.desc$class.levels)
-
-      if (private$.has_thresholded_measure) {
-        # Compute a set of different thresholds and nrounds
-        ncomb = ceiling(1000^(1 / n_classes))
-        threshold_vals = mlrMBO:::combWithSum(ncomb, n_classes) / ncomb
-        if (n_classes > 2L) {
-          threshold_vals = rbind(threshold_vals, 1 / n_classes)
-          colnames(threshold_vals) = task$task.desc$class.levels
-        } else {
-          threshold_vals = threshold_vals[, 1, drop = FALSE]
-        }
-        thresholds = BBmisc::convertRowsToList(threshold_vals, name.vector = TRUE)
-      } else {
-        threshold_vals = NULL
-      }
-
-      ntreelimit_vals  = quantile(seq_len(mod$learner$par.vals$nrounds), probs = c(25, 50, 75, 90, 100) / 100, type = 1)
-
-      # Compute performances
-      lst = lapply(ntreelimit_vals, function(ntreelimit) {
-        # Predict with ntreelimit < nrounds trees
-        mod$learner$par.vals$ntreelimit = ntreelimit
-        prd = predict(mod, task = task)
-        # Predict for different thresholds
-        if (private$.has_thresholded_measure) {
-          do.call("rbind", lapply(thresholds, function(threshold) {
-            prd = setThreshold(prd, threshold)
-            performance(prd, model = mod, task = task, measures = measures)
-          }))
-        } else {
-          performance(prd, model = mod, task = task, measures = measures)
-        }
-      })
-      list(
-        y = unique(do.call("rbind", lst)),
-        x = data.frame(do.call("rbind", lapply(ntreelimit_vals, function(x) cbind(ntreelimit = x, threshold_vals))))
-      )
-    },
-    make_subeval_parset = function(task) {
-      threshold_len = length(task$task.desc$class.levels)
-      if (threshold_len == 2L) threshold_len = 1L
-      ps = makeParamSet(
-        makeIntegerParam(id = "nrounds", lower = 1L, upper = private$.max_nrounds)
-      )
-      if (private$.has_thresholded_measure) {
-        ps = c(ps, makeParamSet(
-          makeNumericVectorParam("threshold", lower = 0, upper = 1, len = threshold_len, trafo = function(x) {
-            if(length(x) > 1L) x = x / sum(x)
-              return(x)
-        })))
-      }
-      return(ps)
-    },
-    .has_thresholded_measure = NULL,
-    .max_nrounds = 300L,
-    .impact_encoding_boundary = 10L,
-    .resample_instance = NULL,
-    .nthread = NULL,
-    .measures = NULL,
-    .baselearner = NULL
-  ),
   active = list(
-    resample_instance = function() {private$.resample_instance},
+    resample_instance = function() {
+      if (missing(value)) {
+        return(private$.resample_instance)
+      } else {
+        private$.resample_instance = assert_class(value, "ResampleInstance", null.ok = TRUE)
+        return(self)
+      }
+    },
     max_nrounds = function(value) {
       if (missing(value)) {
         return(private$.max_nrounds)
       } else {
         private$.max_nrounds = assert_integerish(value, lower = 1L, len = 1L)
-      }
-    },
-    early_stopping_rounds = function(value) {
-      if (missing(value)) {
-        return(private$.early_stopping_rounds)
-      } else {
-        private$.early_stopping_rounds = assert_integerish(value, lower = 1L, len = 1L)
-      }
-    },
-    early_stopping_fraction = function(value) {
-      if (missing(value)) {
-        return(private$.early_stopping_fraction)
-      } else {
-        private$.early_stopping_fraction = assert_numeric(value, lower = 0, upper = 1, len = 1L)
       }
     },
     impact_encoding_boundary = function(value) {
@@ -265,6 +194,70 @@ AxgbPipelineBuilderXGB = R6::R6Class("AxgbPipelineBuilderXGB",
       }
     },
     measures_minimize = function() {sapply(private$.measures, function(x) x$minimize)}
+  ),
+  private = list(
+    make_subevals = function(mod, task, measures) {
+      n_classes = length(task$task.desc$class.levels)
+
+      if (private$.has_thresholded_measure) {
+        # Compute a set of different thresholds and nrounds
+        ncomb = ceiling(1000^(1 / n_classes))
+        threshold_vals = mlrMBO:::combWithSum(ncomb, n_classes) / ncomb
+        if (n_classes > 2L) {
+          threshold_vals = rbind(threshold_vals, 1 / n_classes)
+          colnames(threshold_vals) = task$task.desc$class.levels
+        } else {
+          threshold_vals = threshold_vals[, 1, drop = FALSE]
+        }
+        thresholds = BBmisc::convertRowsToList(threshold_vals, name.vector = TRUE)
+      } else {
+        threshold_vals = NULL
+      }
+
+      ntreelimit_vals  = quantile(seq_len(mod$learner$par.vals$nrounds), probs = c(25, 50, 75, 90) / 100, type = 1)
+
+      # Compute performances
+      ydf = do.call("rbind", lapply(ntreelimit_vals, function(ntreelimit) {
+        # Predict with ntreelimit < nrounds trees
+        mod$learner$par.vals$ntreelimit = ntreelimit
+        prd = predict(mod, task = task)
+        # Predict for different thresholds
+        if (private$.has_thresholded_measure) {
+          do.call("rbind", lapply(thresholds, function(threshold) {
+            prd = setThreshold(prd, threshold)
+            performance(prd, model = mod, task = task, measures = measures)
+          }))
+        } else {
+          performance(prd, model = mod, task = task, measures = measures)
+        }
+      }))
+      list(
+        y = ydf[!duplicated(ydf), ],
+        x = data.frame(do.call("rbind", lapply(ntreelimit_vals, function(x) cbind(ntreelimit = x, threshold = threshold_vals))))[!duplicated(ydf), ]
+      )
+    },
+    make_subeval_parset = function(task) {
+      threshold_len = length(task$task.desc$class.levels)
+      if (threshold_len == 2L) threshold_len = 1L
+      ps = makeParamSet(
+        makeIntegerParam(id = "nrounds", lower = 1L, upper = private$.max_nrounds)
+      )
+      if (private$.has_thresholded_measure) {
+        ps = c(ps, makeParamSet(
+          makeNumericVectorParam("threshold", lower = 0, upper = 1, len = threshold_len, trafo = function(x) {
+            if(length(x) > 1L) x = x / sum(x)
+              return(x)
+        })))
+      }
+      return(ps)
+    },
+    .has_thresholded_measure = NULL,
+    .max_nrounds = 300L,
+    .impact_encoding_boundary = 10L,
+    .resample_instance = NULL,
+    .nthread = NULL,
+    .measures = NULL,
+    .baselearner = NULL
   )
 )
 
