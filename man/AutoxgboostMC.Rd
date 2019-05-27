@@ -3,11 +3,8 @@
 \docType{data}
 \name{AutoxgboostMC}
 \alias{AutoxgboostMC}
-\title{Fit and optimize a xgboost model for multiple criteria}
-\format{An object of class \code{R6ClassGenerator} of length 24.}
-\usage{
-AutoxgboostMC
-}
+\title{Fit and optimize a xgboost model pipeline for multiple criteria}
+\format{[R6::R6Class]}
 \arguments{
 \item{task}{[\code{\link[mlr]{Task}}]\cr
 The task to be trained.}
@@ -20,11 +17,21 @@ Parameter set to tune over. Default is \code{\link{autoxgbparset}}.
 Can be updated using `.$set_parset()`.}
 
 \item{nthread}{[integer(1)]\cr
-  Number of cores to use.
-  If \code{NULL} (default), xgboost will determine internally how many cores to use.
-  Can be set using `.$set_nthread()`.
+Number of cores to use.
+If \code{NULL} (default), xgboost will determine internally how many cores to use.
+Can be set using `.$set_nthread()`.}
 
-Arguments to `.$fit()`:}
+\item{pipeline}{[R6Class:AxgbPipeline(1)]\cr
+The pipeline to optimize over. See `?AxgbPipelineXGB` for more info.
+The pipeline can either be exchanged for a user-defined pipeline, or
+adjusted via setting the hyperparams to `.$pipeline`.
+Defaults to `AxgbPipeline$new()`.}
+
+\item{optimizer}{[R6Class:AxgbOptimizer]\cr
+The optimizer used for optimizing the pipeline.
+The optimizer can either be exchanged for a user-defined optimizer, or
+adjusted via setting the hyperparams to `.$optimizer`.
+Defaults to `AxgbOptimizerSMBO$new()`.}
 
 \item{iterations}{[\code{integer(1L}]\cr
 Number of MBO iterations to do. Will be ignored if a custom \code{MBOControl} is used.
@@ -41,45 +48,45 @@ Default is \code{FALSE}. The model can also be fitted after optimization using `
 \item{plot}{[\code{logical(1)}]\cr
   Should the progress be plotted? Default is \code{TRUE}.
 
-The optimization process can be controlled via additional arguments to `.$optimizer`.
-See `\code{\link{AxgbOptimizer}} for more information.
-
-Additional arguments that control the Pipeline:}
-
-\item{early_stopping_measure}{[\code{\link[mlr]{Measure}}]\cr
-Performance measure used for early stopping. Picks the first measure
-defined in measures by default.}
-
-\item{early_stopping_rounds}{[\code{integer(1L}]\cr
-After how many iterations without an improvement in the boosting OOB error should be stopped?
-Default is \code{10}.}
-
-\item{early_stopping_fraction}{[\code{numeric(1)}]\cr
-What fraction of the data should be used for early stopping (i.e. as a validation set).
-Default is \code{4/5}.}
-
-\item{impact_encoding_boundary}{[\code{integer(1)}]\cr
-Defines the threshold on how factor variables are handled. Factors with more levels than the \code{"impact_encoding_boundary"} get impact encoded while factor variables with less or equal levels than the \code{"impact_encoding_boundary"} get dummy encoded.
-For \code{impact_encoding_boundary = 0L}, all factor variables get impact encoded while for \code{impact_encoding_boundary = .Machine$integer.max}, all of them get dummy encoded.
-Default is \code{10}.}
-
-\item{tune_threshold}{[logical(1)]\cr
-Should thresholds be tuned? This has only an effect for classification, see \code{\link[mlr]{tuneThreshold}}.
-Default is \code{TRUE}.}
-
-\item{max_nrounds}{[\code{integer(1)}]\cr
-Maximum number of allowed boosting iterations. Default is \code{3000}.}
+* `.$fit_final_model()`: \cr
+* `.$set_parset_bounds()`: \cr
+* `.$get_opt_path_df()`: \cr
+* `.$parset()`: \cr
+* `.$logger()`: \cr}
 }
 \description{
-An xgboost model is optimized based on a set of measures (see [\code{\link[mlr]{Measure}}]).
-The bounds of the parameter in which the model is optimized, are defined by \code{\link{autoxgbparset}}.
+An xgboost modeling pipeline is optimized based on a set of measures (see [\code{\link[mlr]{Measure}}]).
+The bounds of the parameter in which the model is optimized, are defined by \code{\link{autoxgbparset}},
+and can be adapted throught the learning process.
 For the optimization itself Bayesian Optimization with \pkg{mlrMBO} is used.
 Without any specification of the control object, the optimizer runs for for 160 iterations or 1 hour,
 whichever happens first.
 Both the parameter set and the control object can be set by the user.
-
-Arguments to `.$new()`:
 }
+\section{Construction}{
+\cr
+ ```
+ axgb = AutoxgboostMC$new(task, measure = list(auc, acc))
+ ```
+}
+
+\section{Methods}{
+
+* `.$fit()`: \cr
+}
+
+\section{Plot Methods}{
+
+* `.$plot_pareto_front()`: \cr
+* `.$plot_pareto_front_projections()`: \cr
+* `.$plot_parallel_coordinates()`: \cr
+* `.$plot_opt_path()`: \cr
+* `.$set_parset_bounds()`: \cr
+
+The optimization process can be controlled via additional arguments to `.$optimizer`.
+See `\code{\link{AxgbOptimizer}} for more information.
+}
+
 \examples{
 \donttest{
 # Create a mlr Task

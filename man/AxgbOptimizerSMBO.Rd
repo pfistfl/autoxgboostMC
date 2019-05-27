@@ -3,14 +3,8 @@
 \docType{data}
 \name{AxgbOptimizerSMBO}
 \alias{AxgbOptimizerSMBO}
-\title{Optimize using SMBO
-
-Additional arguments that control the Bayesian Optimization process:
-Can be set / obtained via respective Active Bindings:}
-\format{An object of class \code{R6ClassGenerator} of length 24.}
-\usage{
-AxgbOptimizerSMBO
-}
+\title{AutoxgboostMC Optimizer using SMBO}
+\format{[R6::R6Class] object inheriting from [AxgbOptimizer].}
 \arguments{
 \item{control}{[\code{\link[mlrMBO]{MBOControl}}]\cr
 Control object for optimizer.
@@ -26,9 +20,16 @@ If \code{NULL} (default), the default learner is determined as described here:
 Size of the initial design. Default is \code{15L}.}
 }
 \description{
-Optimize using SMBO
+AutoxgboostMC Optimizer using SMBO
+}
+\section{Construction}{
+
+ ```
+ AxgbOptimizerSMBO$new()
+ ```
 
 Additional arguments that control the Bayesian Optimization process:
 Can be set / obtained via respective Active Bindings:
 }
+
 \keyword{datasets}

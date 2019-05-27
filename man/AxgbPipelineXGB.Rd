@@ -3,13 +3,8 @@
 \docType{data}
 \name{AxgbPipelineXGB}
 \alias{AxgbPipelineXGB}
-\title{Build a xgboost baselearner and Preproc Pipeline
-
-Additional arguments that control the Pipeline can be set via Active Bindings.}
-\format{An object of class \code{R6ClassGenerator} of length 24.}
-\usage{
-AxgbPipelineXGB
-}
+\title{Build a xgboost baselearner and Preproc Pipeline}
+\format{[R6::R6Class] object inheriting from [AxgbPipeline].}
 \arguments{
 \item{early_stopping_measure}{[\code{\link[mlr]{Measure}}]\cr
 Performance measure used for early stopping. Picks the first measure
@@ -37,7 +32,14 @@ Maximum number of allowed boosting iterations. Default is \code{3000}.}
 }
 \description{
 Build a xgboost baselearner and Preproc Pipeline
+}
+\section{Construction}{
+\cr
+ ```
+ axgb = AxgbPipelineXGB$new()
+ ```
 
 Additional arguments that control the Pipeline can be set via Active Bindings.
 }
+
 \keyword{datasets}

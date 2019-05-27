@@ -1,4 +1,5 @@
-#' @title Abstract Base Class
+#' @title AutoxgboostMC Optimizer Class
+#' @format [R6::R6Class]
 #' @export
 #' @seealso \code{\link{AxgbOptimizerSMBO}}
 AxgbOptimizer = R6::R6Class("AxgbOptimizer",
@@ -51,7 +52,12 @@ AxgbOptimizer = R6::R6Class("AxgbOptimizer",
   )
 )
 
-#' @title Optimize using SMBO
+#' @title AutoxgboostMC Optimizer using SMBO
+#' @format [R6::R6Class] object inheriting from [AxgbOptimizer].
+#' @section Construction:
+#'  ```
+#'  AxgbOptimizerSMBO$new()
+#'  ```
 #'
 #' Additional arguments that control the Bayesian Optimization process:
 #' Can be set / obtained via respective Active Bindings:
@@ -65,6 +71,7 @@ AxgbOptimizer = R6::R6Class("AxgbOptimizer",
 #'   \link[mlrMBO]{mbo_default_learner}.
 #' @param design_size [\code{integer(1)}]\cr
 #'   Size of the initial design. Default is \code{15L}.
+#' @usage NULL
 #' @include plot_axgb_result.R
 #' @include helpers.R
 #' @export

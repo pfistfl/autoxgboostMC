@@ -4,10 +4,7 @@
 \name{AxgbPipeline}
 \alias{AxgbPipeline}
 \title{Abstract Base Class}
-\format{An object of class \code{R6ClassGenerator} of length 24.}
-\usage{
-AxgbPipeline
-}
+\format{[R6::R6Class]}
 \description{
 Abstract Base Class
 }

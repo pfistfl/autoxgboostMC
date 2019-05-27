@@ -1,4 +1,6 @@
 #' @title Abstract Base Class
+#' @format [R6::R6Class]
+#' @usage NULL
 #' @seealso \code{\link{AxgbPipelineXGB}}
 #' @export
 AxgbPipeline = R6::R6Class("AxgbPipeline",
@@ -21,6 +23,11 @@ AxgbPipeline = R6::R6Class("AxgbPipeline",
 )
 
 #' @title Build a xgboost baselearner and Preproc Pipeline
+#' @format [R6::R6Class] object inheriting from [AxgbPipeline].
+#' @section Construction:\cr
+#'  ```
+#'  axgb = AxgbPipelineXGB$new()
+#'  ```
 #'
 #' Additional arguments that control the Pipeline can be set via Active Bindings.
 #'
@@ -42,6 +49,7 @@ AxgbPipeline = R6::R6Class("AxgbPipeline",
 #'   Default is \code{TRUE}.
 #' @param max_nrounds [\code{integer(1)}]\cr
 #'   Maximum number of allowed boosting iterations. Default is \code{3000}.
+#' @usage NULL
 #' @export
 AxgbPipelineXGB = R6::R6Class("AxgbPipelineXGB",
   inherit = AxgbPipeline,
