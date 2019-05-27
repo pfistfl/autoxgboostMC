@@ -4,8 +4,6 @@
 #' @seealso \code{\link{AxgbOptimizerSMBO}}
 AxgbOptimizer = R6::R6Class("AxgbOptimizer",
   public = list(
-    opt_state = NULL,
-    opt_result = NULL,
     fit = function() {stop("Abstract Base Class")},
     configure = function(measures, obj_fun, parset, logger) {
       private$.measures = measures
@@ -78,6 +76,8 @@ AxgbOptimizer = R6::R6Class("AxgbOptimizer",
 AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
   inherit = AxgbOptimizer,
   public = list(
+    opt_state = NULL,
+    opt_result = NULL,
     initialize = function() {
     },
     fit = function(iterations, time_budget, plot) {
