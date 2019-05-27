@@ -64,7 +64,7 @@ whichever happens first.
 Both the parameter set and the control object can be set by the user.
 }
 \section{Construction}{
-\cr
+ \cr
  ```
  axgb = AutoxgboostMC$new(task, measure = list(auc, acc))
  ```
@@ -84,7 +84,7 @@ Both the parameter set and the control object can be set by the user.
 * `.$set_parset_bounds()`: \cr
 
 The optimization process can be controlled via additional arguments to `.$optimizer`.
-See `\code{\link{AxgbOptimizer}} for more information.
+See `\code{\link{AxgbOptimizer}}` for more information.
 }
 
 \examples{

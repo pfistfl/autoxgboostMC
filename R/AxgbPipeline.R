@@ -26,11 +26,15 @@ AxgbPipeline = R6::R6Class("AxgbPipeline",
 #' @format [R6::R6Class] object inheriting from [AxgbPipeline].
 #' @section Construction:\cr
 #'  ```
-#'  axgb = AxgbPipelineXGB$new()
+#'  p = AxgbPipelineXGB$new()
 #'  ```
+#' @section Methods:
+#' * `.$configure(logger, parset)`: \cr
+#' * `.$get_objfun(task, measures, parset, nthread)`: \cr
+#' * `.$build_final_learner(pars)`: \cr
 #'
+#' @section Fields:\cr
 #' Additional arguments that control the Pipeline can be set via Active Bindings.
-#'
 #' @param early_stopping_measure [\code{\link[mlr]{Measure}}]\cr
 #'   Performance measure used for early stopping. Picks the first measure
 #'   defined in measures by default.
@@ -44,11 +48,10 @@ AxgbPipeline = R6::R6Class("AxgbPipeline",
 #'   Defines the threshold on how factor variables are handled. Factors with more levels than the \code{"impact_encoding_boundary"} get impact encoded while factor variables with less or equal levels than the \code{"impact_encoding_boundary"} get dummy encoded.
 #'   For \code{impact_encoding_boundary = 0L}, all factor variables get impact encoded while for \code{impact_encoding_boundary = .Machine$integer.max}, all of them get dummy encoded.
 #'   Default is \code{10}.
-#' @param tune_threshold [logical(1)]\cr
-#'   Should thresholds be tuned? This has only an effect for classification, see \code{\link[mlr]{tuneThreshold}}.
-#'   Default is \code{TRUE}.
 #' @param max_nrounds [\code{integer(1)}]\cr
 #'   Maximum number of allowed boosting iterations. Default is \code{3000}.
+#'
+#'
 #' @usage NULL
 #' @export
 AxgbPipelineXGB = R6::R6Class("AxgbPipelineXGB",

@@ -23,10 +23,6 @@ Defines the threshold on how factor variables are handled. Factors with more lev
 For \code{impact_encoding_boundary = 0L}, all factor variables get impact encoded while for \code{impact_encoding_boundary = .Machine$integer.max}, all of them get dummy encoded.
 Default is \code{10}.}
 
-\item{tune_threshold}{[logical(1)]\cr
-Should thresholds be tuned? This has only an effect for classification, see \code{\link[mlr]{tuneThreshold}}.
-Default is \code{TRUE}.}
-
 \item{max_nrounds}{[\code{integer(1)}]\cr
 Maximum number of allowed boosting iterations. Default is \code{3000}.}
 }
@@ -36,9 +32,19 @@ Build a xgboost baselearner and Preproc Pipeline
 \section{Construction}{
 \cr
  ```
- axgb = AxgbPipelineXGB$new()
+ p = AxgbPipelineXGB$new()
  ```
+}
 
+\section{Methods}{
+
+* `.$configure(logger, parset)`: \cr
+* `.$get_objfun(task, measures, parset, nthread)`: \cr
+* `.$build_final_learner(pars)`: \cr
+}
+
+\section{Fields}{
+\cr
 Additional arguments that control the Pipeline can be set via Active Bindings.
 }
 

@@ -10,7 +10,7 @@
 #' whichever happens first.
 #' Both the parameter set and the control object can be set by the user.
 #'
-#' @section Construction:\cr
+#' @section Construction: \cr
 #'  ```
 #'  axgb = AutoxgboostMC$new(task, measure = list(auc, acc))
 #'  ```
@@ -65,7 +65,7 @@
 #' * `.$set_parset_bounds()`: \cr
 #'
 #' The optimization process can be controlled via additional arguments to `.$optimizer`.
-#' See `\code{\link{AxgbOptimizer}} for more information.
+#' See `\code{\link{AxgbOptimizer}}` for more information.
 #'
 #' @usage NULL
 #' @include AxgbOptimizer.R

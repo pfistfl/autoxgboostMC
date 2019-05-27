@@ -52,6 +52,7 @@ AxgbOptimizer = R6::R6Class("AxgbOptimizer",
 
 #' @title AutoxgboostMC Optimizer using SMBO
 #' @format [R6::R6Class] object inheriting from [AxgbOptimizer].
+#'
 #' @section Construction:
 #'  ```
 #'  AxgbOptimizerSMBO$new()
