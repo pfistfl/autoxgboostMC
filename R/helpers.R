@@ -55,9 +55,13 @@ get_univariate_set = function(opt_state, xy, measures) {
 get_subevals = function(prop, y) {
   x = prop$prop.points
   x$nrounds = NULL
-  x = cbind(x, nrounds = attr(y, "extra")$.subevals$x$ntreelimit)
-  x$threshold = nrounds = attr(y, "extra")$.subevals$x$V2
+  subevals = attr(y, "extra")$.subevals$x
+  x = cbind(x, nrounds = subevals$ntreelimit)
+  if (is.null(subevals$V2)) {
+    x$threshold = subevals$x$V2
+  }
   y = attr(y, "extra")$.subevals$y
+  if (is.null(dim(y))) y = data.frame(y)
   return(list(x = x[, colnames(prop$prop.points)], y = convertRowsToList(y)))
 }
 

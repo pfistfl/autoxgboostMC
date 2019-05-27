@@ -244,7 +244,7 @@ AxgbPipelineXGB = R6::R6Class("AxgbPipelineXGB",
       }))
       list(
         y = ydf[!duplicated(ydf), ],
-        x = data.frame(do.call("rbind", lapply(ntreelimit_vals, function(x) cbind(ntreelimit = x, threshold = threshold_vals))))[!duplicated(ydf), ]
+        x = data.frame(do.call("rbind", lapply(ntreelimit_vals, function(x) cbind(ntreelimit = x, threshold = threshold_vals))))[!duplicated(ydf), , drop = FALSE]
       )
     },
     make_subeval_parset = function(task) {
