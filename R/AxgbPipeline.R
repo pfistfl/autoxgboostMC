@@ -12,9 +12,8 @@ AxgbPipeline = R6::R6Class("AxgbPipeline",
       if (is.null(private$.parset))
         private$.parset =  coalesce(parset, autoxgboostMC::autoxgbparset)
     },
-    build_transform_pipeline = function() {stop("Abstract Base class!")},
-    make_baselearner =         function() {stop("Abstract Base class!")},
-    make_objective_function =  function() {stop("Abstract Base class!")}
+    get_objfun = function() {stop("Abstract Base class!")},
+    build_final_learner =  function() {stop("Abstract Base class!")}
   ),
   private = list(
     .logger = NULL,
