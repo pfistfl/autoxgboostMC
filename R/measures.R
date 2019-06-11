@@ -5,25 +5,27 @@
 #' We implement the following measures:\cr
 #'
 #' Independence `fairpr` \cr
-#' Sufficiency `fairf1` \cr
+#' Sufficiency `fairf1` | `fairfpr` | `varf1` \cr
 #' Callibration `fairppv` \cr
 #'
 #' The arguments can be set via `extra.args` for all measures.
 #'
 #' @param grouping [`function` | `factor` | `character`]\cr
 #'   Either a function(df), a factor or a character column name that returns a factor.
-#'   If `function`, df is the output of `getTaskData()`.
-#'   This factor is used to split the data and compute differences between groups.
+#'   If `function(df)`, df is the output of `getTaskData()`.
+#'   This factor is then used to split the data and compute differences between groups.
+#'   Grouping can be set via `setMeasurePars`.
 #' @rdname fairness_measures
 #' @name fairness_measures
 #' @examples \dontrun{setMeasurePars(fairf1, grouping = function(df) {as.factor(df$age > 30)})}
 NULL
 
+
 # 1) Independence
 #' Absolute differences of Positive Rate between groups
 #'
 #' @export
-fairpr = mlr::makeMeasure(id = "fairness.pr", minimize = TRUE, properties = c("classif", "response", "req.task"),
+fairpr = mlr::makeMeasure(id = "fairness.pr", minimize = TRUE, properties = c("classif", "response", "req.task", "req.pred", "req.truth"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
     groups = get_grouping(task, extra.args, 2L)
@@ -34,12 +36,13 @@ fairpr = mlr::makeMeasure(id = "fairness.pr", minimize = TRUE, properties = c("c
   }
 )
 
+
 ## 2) Sufficiency
 
 #' Absolute differences of F1 Scores between groups
 #' See Hardt et al, 2016: https://arxiv.org/pdf/1610.02413.pdf
 #' @export
-fairf1 = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("classif", "response", "req.task"),
+fairf1 = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("classif", "response", "req.task", "req.pred", "req.truth"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
     groups = get_grouping(task, pred, extra.args, 2L)
@@ -53,22 +56,23 @@ fairf1 = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("c
 #' Absolute differences of False Positive Rates between groups
 #' See Hardt et al, 2016: https://arxiv.org/pdf/1610.02413.pdf
 #' @export
-fairfpr = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("classif", "response", "req.task"),
+fairfpr = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("classif", "response", "req.task", "req.pred", "req.truth"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
-    groups = get_grouping(task, extra.args, 2L)
+    groups = get_grouping(task, pred, extra.args, 2L)
     fs = sapply(split(pred$data, f = groups), function(x) {
      measureFPR(x$truth, x$response, pred$task.desc$positive)
     })
     abs(max(fs) - min(fs))
   }
 )
+
 #' Variance of F1 Scores between groups
 #' @export
-varf1 = mlr::makeMeasure(id = "fairness.varf1", minimize = TRUE, properties = c("classif", "response", "req.task"),
+varf1 = mlr::makeMeasure(id = "fairness.varf1", minimize = TRUE, properties = c("classif", "response", "req.task", "req.pred", "req.truth"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
-    groups = get_grouping(task, extra.args)
+    groups = get_grouping(task, pred, extra.args)
     fs = sapply(split(pred$data, f = groups), function(x) {
      measureF1(x$truth, x$response, pred$task.desc$positive)
     })
@@ -77,16 +81,14 @@ varf1 = mlr::makeMeasure(id = "fairness.varf1", minimize = TRUE, properties = c(
 )
 
 
-
-
 ## 3) Calibration
 
 #' Absolute differences of Positive Predictive Value between groups
 #' @export
-fairppv = mlr::makeMeasure(id = "fairness.ppv", minimize = TRUE, properties = c("classif", "response", "req.task"),
+fairppv = mlr::makeMeasure(id = "fairness.ppv", minimize = TRUE, properties = c("classif", "response", "req.task", "req.pred", "req.truth"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
-    groups = get_grouping(task, extra.args, 2L)
+    groups = get_grouping(task, pred, extra.args, 2L)
     fs = sapply(split(pred$data, f = groups), function(x) {
       measurePPV(x$truth, x$response, pred$task.desc$positive)
     })
@@ -94,7 +96,8 @@ fairppv = mlr::makeMeasure(id = "fairness.ppv", minimize = TRUE, properties = c(
   }
 )
 
-### Interpretability Measures:
+
+### Interpretability Measures: -----------------------------------------------------------------------
 # FIXME: We have to compute 'imeasure' globally only once. Or aggregate, otherwise this is very slow.
 
 #' Interpretability Measures
@@ -210,7 +213,7 @@ interpnf2 = mlr::makeMeasure(id = "interp.nfeat2", minimize = TRUE,
   }
 )
 
-### Robustness Measures:
+### Robustness Measures:-------------------------------------------------------------------
 
 #' Robustness Measures
 #'
@@ -291,7 +294,8 @@ robustnoiseperfeat = mlr::makeMeasure(id = "robustness.perfeat.noise", minimize 
 # Distribution shift
 
 
-### Helper functions
+
+### Helper functions ---------------------------------------------------------------------
 
 #' Obtain a grouping factor from either a data column, an additional factor or a function.
 get_grouping = function(task, pred, extra_args, n_levels = NULL) {

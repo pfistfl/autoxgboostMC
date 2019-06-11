@@ -6,8 +6,9 @@
 \arguments{
 \item{grouping}{[`function` | `factor` | `character`]\cr
 Either a function(df), a factor or a character column name that returns a factor.
-If `function`, df is the output of `getTaskData()`.
-This factor is used to split the data and compute differences between groups.}
+If `function(df)`, df is the output of `getTaskData()`.
+This factor is then used to split the data and compute differences between groups.
+Grouping can be set via `setMeasurePars`.}
 }
 \description{
 Fair algorithms usually are defined as having similar performances within
@@ -16,7 +17,7 @@ We implement the following measures:\cr
 }
 \details{
 Independence `fairpr` \cr
-Sufficiency `fairf1` \cr
+Sufficiency `fairf1` | `fairfpr` | `varf1` \cr
 Callibration `fairppv` \cr
 
 The arguments can be set via `extra.args` for all measures.

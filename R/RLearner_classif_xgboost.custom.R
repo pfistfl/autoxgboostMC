@@ -43,7 +43,8 @@ makeRLearner.classif.xgboost.custom = function() {
       makeIntegerLearnerParam(id = "max_leaves", default = 0L, lower = 0L, requires = quote(grow_policy == "lossguide")),
       makeIntegerLearnerParam(id = "max_bin", default = 256L, lower = 2L, requires = quote(tree_method == "hist")),
       makeUntypedLearnerParam(id = "callbacks", default = list(), tunable = FALSE),
-      makeNumericLearnerParam(id = "scale_pos_weight", lower = 0)
+      makeNumericLearnerParam(id = "scale_pos_weight", lower = 0),
+      makeIntegerLearnerParam(id = "ntreelimit", lower = 1, upper = Inf, default = NULL, special.vals = list(NULL), when = "predict")
     ),
     par.vals = list(nrounds = 1L, verbose = 0L),
     properties = c("twoclass", "multiclass", "numerics", "prob", "weights", "missings", "featimp"),
@@ -131,4 +132,66 @@ predictLearner.classif.xgboost.custom = function(.learner, .model, .newdata, ...
       }
     }
   }
+}
+
+predict_classif_with_subevals = function(.model, .task = NULL, .newdata, ntreelimit = NULL, predict.threshold = NULL) {
+  if (!is.null(ntreelimit)) assert_true(.model$learner$par.vals$nrounds >= ntreelimit)
+  if (is.null(.task) & missing(.newdata)) stop("Either provide newdata or a task")
+  if (missing(.newdata)) .newdata = getTaskData(.task, target.extra = TRUE)$data
+  td = .model$task.desc
+  m = .model$learner.model
+  cls = td$class.levels
+  nc = length(cls)
+  .learner = .model$learner
+  obj = .learner$par.vals$objective
+  if (!is.null(predict.threshold)) names(predict.threshold) = td$class.levels
+
+  if (is.null(obj))
+    .learner$par.vals$objective = ifelse(nc == 2L, "binary:logistic", "multi:softprob")
+
+  time.predict = mlr:::measureTime({
+  p = predict(m, newdata = data.matrix(convertDataFrameCols(.newdata, ints.as.num = TRUE)), ntreelimit = ntreelimit)
+  })
+
+  if (nc == 2L) { #binaryclass
+    if (.learner$par.vals$objective == "multi:softprob") {
+      y = matrix(p, nrow = length(p) / nc, ncol = nc, byrow = TRUE)
+      colnames(y) = cls
+    } else {
+      y = matrix(0, ncol = 2, nrow = nrow(.newdata))
+      colnames(y) = cls
+      y[, 1L] = 1 - p
+      y[, 2L] = p
+    }
+    if (.learner$predict.type == "prob") {
+      p = y
+    } else {
+      p = colnames(y)[max.col(y)]
+      names(p) = NULL
+      p = factor(p, levels = colnames(y))
+    }
+  } else { #multiclass
+    if (.learner$par.vals$objective  == "multi:softmax") {
+      p = as.factor(p) #special handling for multi:softmax which directly predicts class levels
+      levels(p) = cls
+    } else {
+      p = matrix(p, nrow = length(p) / nc, ncol = nc, byrow = TRUE)
+      colnames(p) = cls
+      if (.learner$predict.type == "prob") {
+        p = p
+      } else {
+        ind = max.col(p)
+        cns = colnames(p)
+        p = factor(cns[ind], levels = cns)
+      }
+    }
+  }
+
+  subset = mlr:::checkTaskSubset(NULL, size = nrow(.newdata))
+  if(is.null(.task)) id = NULL else id = subset
+  if(is.null(.task)) truth = NULL else truth = getTaskData(.task, target.extra = TRUE)$target
+  pred = makePrediction(task.desc = td, row.names = rownames(.newdata), id = id, truth = truth,
+    predict.type = .learner$predict.type, predict.threshold = predict.threshold,
+    y = p, time = time.predict)
+  return(pred)
 }

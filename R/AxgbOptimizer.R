@@ -1,14 +1,13 @@
-#' @title Abstract Base Class
+#' @title AutoxgboostMC Optimizer Class
+#' @format [R6::R6Class]
 #' @export
 #' @seealso \code{\link{AxgbOptimizerSMBO}}
 AxgbOptimizer = R6::R6Class("AxgbOptimizer",
   public = list(
-    opt_state = NULL,
-    opt_result = NULL,
     fit = function() {stop("Abstract Base Class")},
-    configure = function(measures, objfun, parset, logger) {
+    configure = function(measures, obj_fun, parset, logger) {
       private$.measures = measures
-      private$.obj_fun = assert_class(obj_fun, "smoof_function")
+      private$.obj_fun = assert_function(obj_fun)
       private$.parset  = assert_class(parset, "ParamSet")
       private$.logger  = assert_class(logger, "logger")
     },
@@ -51,7 +50,13 @@ AxgbOptimizer = R6::R6Class("AxgbOptimizer",
   )
 )
 
-#' @title Optimize using SMBO
+#' @title AutoxgboostMC Optimizer using SMBO
+#' @format [R6::R6Class] object inheriting from [AxgbOptimizer].
+#'
+#' @section Construction:
+#'  ```
+#'  AxgbOptimizerSMBO$new()
+#'  ```
 #'
 #' Additional arguments that control the Bayesian Optimization process:
 #' Can be set / obtained via respective Active Bindings:
@@ -65,12 +70,15 @@ AxgbOptimizer = R6::R6Class("AxgbOptimizer",
 #'   \link[mlrMBO]{mbo_default_learner}.
 #' @param design_size [\code{integer(1)}]\cr
 #'   Size of the initial design. Default is \code{15L}.
+#' @usage NULL
 #' @include plot_axgb_result.R
 #' @include helpers.R
 #' @export
 AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
   inherit = AxgbOptimizer,
   public = list(
+    opt_state = NULL,
+    opt_result = NULL,
     initialize = function() {
     },
     fit = function(iterations, time_budget, plot) {
@@ -90,11 +98,6 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
       assert_true(!is.null(self$opt_result))
       pars = trafoValue(self$parset, self$opt_result$x)
       pars = pars[!vlapply(pars, is.na)]
-
-      nrounds = self$get_best("nrounds")
-      threshold = self$get_best(".threshold")
-      pars$nrounds = nrounds
-      pars$threshold = threshold
       return(pars)
     },
     set_possible_projections = function(measure_weights) {
@@ -146,14 +149,24 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
     .control = NULL,
     .design_size = 15L,
     .mbo_learner = NULL,
-    fit_iteration = function(plot) {
+    fit_iteration = function(plot, subevals = TRUE) {
       log4r::debug(private$.logger, catf("Fitting Iteration %s", private$.watch$current_iter))
       prop = proposePoints(self$opt_state)
+      rownames(prop$prop.points) = NULL
       x = trafoValue(private$.parset, dfRowsToList(df = prop$prop.points, par.set = self$parset)[[1]])
-      y = private$.obj_fun(x)
+      y = private$.obj_fun(x, subevals = TRUE)
+
+      if (subevals) {
+        xy_pareto = get_subevals(prop, y)
+        if (length(y) >= 2L) {
+         xy_pareto = get_pareto_set(self$opt_state, xy_pareto, private$.parset, private$.measures)
+        } else {
+          xy_pareto = get_univariate_set(self$opt_state, xy_pareto, private$.measures)
+        }
+        if (length(xy_pareto$y) > 0) updateSMBO(self$opt_state, x = xy_pareto$x, y = xy_pareto$y)
+      }
+
       updateSMBO(self$opt_state, x = prop$prop.points, y = y)
-      # Write out .nrounds etc. (currently missing in mlrMBO)
-      # self$opt_state$opt.path$env$extra[[length(self$opt_state$opt.path$env$extra)]] = c(self$opt_state$opt.path$env$extra[[length(self$opt_state$opt.path$env$extra)]], attr(y, "extras"))
       self$watch$increment_iter()
       if(plot) self$plot_opt_path()
     },
@@ -167,8 +180,13 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
           private$.control = setMBOControlInfill(private$.control, crit = makeMBOInfillCritDIB(cb.lambda = 2L))
         }
       }
-      des = generateDesign(n = private$.design_size, private$.parset)
-      # Doing one iteration here to evaluate design saves a lot of redundancy.
+
+      # Get fast initial models
+      init_parset = private$.parset
+      init_parset$pars$nrounds$upper = 15L
+      des = generateDesign(n = private$.design_size, init_parset)
+
+      # Doing one iteration here to evaluate design, saves a lot of redundancy.
       private$.control = setMBOControlTermination(private$.control, iters = 1L)
       opt_result = mbo(fun = private$.obj_fun, design = des, learner = private$.mbo_learner,
         control = private$.control)
