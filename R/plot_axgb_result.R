@@ -62,8 +62,7 @@ plot_pareto_front_projections = function(x = NULL, y = NULL, wt_range = c(0, 1),
 #' Obtain the data required to plot non-convex pareto fronts
 get_pareto_data_nonconvex = function(front_data, x, y, x_minimize) {
   # Make sure data is sorted
-  front_data = front_data[order(front_data[[x]]), c(x, y)]
-
+  front_data = front_data[order(front_data[[x]], decreasing = x_minimize), c(x, y)]
   # FIXME: This should work for all combinations of measure$minimize
   front_line = data.frame(front_data[[x]][-nrow(front_data)], front_data[[y]][-1])
   colnames(front_line) = colnames(front_data)

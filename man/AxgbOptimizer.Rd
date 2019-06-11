@@ -3,13 +3,13 @@
 \docType{data}
 \name{AxgbOptimizer}
 \alias{AxgbOptimizer}
-\title{Abstract Base Class}
-\format{An object of class \code{R6ClassGenerator} of length 24.}
+\title{AutoxgboostMC Optimizer Class}
+\format{[R6::R6Class]}
 \usage{
 AxgbOptimizer
 }
 \description{
-Abstract Base Class
+AutoxgboostMC Optimizer Class
 }
 \seealso{
 \code{\link{AxgbOptimizerSMBO}}

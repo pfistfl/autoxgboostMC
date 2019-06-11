@@ -1,19 +1,19 @@
 context("AxgbOptimizer")
-test_that("Can be instantiated",  {
+test_that("Can be instantiated Single Crit",  {
   measures = list(auc)
   logger = log4r::logger()
   parset = makeParamSet(makeNumericParam("x", lower = 0, upper = 1))
-  fn = smoof::makeMultiObjectiveFunction(n.objectives=1L, fn = function(x) {x}, par.set=parset)
-  opt = AxgbOptimizerSMBO$new(measures, fn, parset, logger)
+  fn = smoof::makeMultiObjectiveFunction(n.objectives=1L, fn = function(x) {x}, par.set = parset)
+  opt = AxgbOptimizerSMBO$new()
   expect_r6(opt)
   expect_class(opt, "AxgbOptimizerSMBO")
+  opt$configure(measures, fn, parset, logger)
   expect_true(opt$n_objectives == 1L)
   expect_class(opt$parset, "ParamSet")
   expect_true(opt$measure_ids == "auc")
 })
 
-context("AxgbOptimizer")
-test_that("Can be instantiated",  {
+test_that("Can be instantiated Multicrit",  {
   measures = list(auc, acc)
   logger = log4r::logger()
   parset = makeParamSet(
@@ -21,9 +21,10 @@ test_that("Can be instantiated",  {
     makeNumericParam("y", lower = 0, upper = 1)
   )
   fn = smoof::makeMultiObjectiveFunction(n.objectives=2L, fn = function(x) {x}, par.set=parset)
-  opt = AxgbOptimizerSMBO$new(measures, fn, parset, logger)
+  opt = AxgbOptimizerSMBO$new()
   expect_r6(opt)
   expect_class(opt, "AxgbOptimizerSMBO")
+  opt$configure(measures, fn, parset, logger)
   expect_true(opt$n_objectives == 2L)
   expect_class(opt$parset, "ParamSet")
   expect_true(all(opt$measure_ids == c("auc", "acc")))

@@ -19,6 +19,52 @@ get_best_iteration = function(mod) {
   getLearnerModel(mod, more.unwrap = TRUE)$best_iteration
 }
 
+# Obtain the points from a set xy that are on the pareto front
+# given earlier evaluation contained in an opt_state
+get_pareto_set = function(opt_state, xy, ps, measures) {
+  minimize = vlapply(measures, function(x) x$minimize)
+  y.names = vcapply(measures, function(x) x$id)
+  op = makeOptPathDF(par.set = ps, y.names = y.names, minimize = minimize)
+  for (i in seq_len(nrow(xy$x))) {
+    addOptPathEl(op = op, x = convertRowsToList(xy$x)[[i]], y = xy$y[[i]])
+  }
+  odf = as.data.frame(opt_state$opt.path)
+  for (j in seq_len(nrow(odf))) {
+    addOptPathEl(op = op, x = convertRowsToList(odf[, colnames(xy$x)])[[j]], y = unlist(odf[j, y.names]))
+  }
+  idx = intersect(seq_len(nrow(xy$x)), getOptPathParetoFront(op, index = TRUE))
+  list(x = xy$x[idx, ], y = xy$y[idx])
+}
+
+
+# Obtain the points from a set xy that are in the 90% quantile
+# given earlier evaluation contained in an opt_state.
+get_univariate_set = function(opt_state, xy, measures) {
+  minimize = vlapply(measures, function(x) x$minimize)
+  y.names = vcapply(measures, function(x) x$id)
+  odf = as.data.frame(opt_state$opt.path)
+  if (minimize) {
+    idx = which(xy$y <= quantile(c(odf[, y.names], unlist(xy$y)), 0.1))
+  } else {
+    idx = which(xy$y >= quantile(c(odf[, y.names], unlist(xy$y)), 0.9))
+  }
+  idx = intersect(seq_len(nrow(xy$x)), idx)
+  list(x = xy$x[idx, ], y = xy$y[idx])
+}
+
+get_subevals = function(prop, y) {
+  x = prop$prop.points
+  x$nrounds = NULL
+  subevals = attr(y, "extra")$.subevals$x
+  x = cbind(x, nrounds = subevals$ntreelimit)
+  if (is.null(subevals$V2)) {
+    x$threshold = subevals$x$V2
+  }
+  y = attr(y, "extra")$.subevals$y
+  if (is.null(dim(y))) y = data.frame(y)
+  return(list(x = x[, colnames(prop$prop.points)], y = convertRowsToList(y)))
+}
+
 # This generates a preprocessing pipeline to handle categorical features
 # @param task: the task
 # @param impact.encoding.boundary: See autoxgboost
