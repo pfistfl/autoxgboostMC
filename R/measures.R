@@ -56,12 +56,12 @@ fairf1 = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("c
 #' Absolute differences of False Positive Rates between groups
 #' See Hardt et al, 2016: https://arxiv.org/pdf/1610.02413.pdf
 #' @export
-fairfpr = mlr::makeMeasure(id = "fairness.f1", minimize = TRUE, properties = c("classif", "response", "req.task", "req.pred", "req.truth"),
+fairfpr = mlr::makeMeasure(id = "fairness.fpr", minimize = TRUE, properties = c("classif", "response", "req.task", "req.pred", "req.truth"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
     groups = get_grouping(task, pred, extra.args, 2L)
     fs = sapply(split(pred$data, f = groups), function(x) {
-     measureFPR(x$truth, x$response, pred$task.desc$positive)
+     measureFPR(x$truth, x$response, pred$task.desc$negative, pred$task.desc$positive)
     })
     abs(max(fs) - min(fs))
   }
