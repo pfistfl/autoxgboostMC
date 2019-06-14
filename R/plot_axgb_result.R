@@ -100,10 +100,10 @@ plot_parallel_coordinates = function(order = "hclust") {
   opt_df = opt_df[, pars]
 
   # Reorder using hclust
-  if (order == "hclust") {
-    hc = hclust(dist(cor(opt_df)))
-    opt_df = opt_df[hc$order, ]
-  }
+  # if (order == "hclust") {
+  #   hc = hclust(dist(cor(opt_df)))
+  #   opt_df = opt_df[hc$order, ]
+  # }
 
   p = plot_parallel_coordinates_parcoords(opt_df)
   return(p)
