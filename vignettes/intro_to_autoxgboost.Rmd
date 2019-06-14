@@ -315,7 +315,7 @@ We can now start the training process with some initial iterations.
 
 ```{r, eval = FALSE}
 set.seed(20190606)
-axgb$fit(iterations = 20L, plot = TRUE)
+axgb$fit(iterations = 20L, plot = FALSE)
 ```
 
 After the fitting for the first time we can select a region of the pareto front, we want to focus on and continue the training with more iterations.
@@ -324,7 +324,7 @@ After the fitting for the first time we can select a region of the pareto front,
 p1 = axgb$plot_pareto_front_projections(wt_range = c(0.1, 0.9))
 
 axgb$optimizer$set_possible_projections(c(0.1, 0.9))
-axgb$fit(iterations = 50L, plot = TRUE)
+axgb$fit(iterations = 50L, plot = FALSE)
 p2 = axgb$plot_pareto_front_projections(wt_range = c(0.1, 0.9))
 ```
 
@@ -333,8 +333,8 @@ p2 = axgb$plot_pareto_front_projections(wt_range = c(0.1, 0.9))
 library(ggplot2)
 library(patchwork)
 load(file = "results.RData")
-plot(p1)
-plot(p2)
+p1
+p2
 ```
 
 
@@ -342,13 +342,13 @@ We can repeat this process until we are happy with the results.
 
 ```{r, eval = FALSE}
 axgb$optimizer$set_possible_projections(c(0.1, 0.9))
-axgb$fit(iterations = 50L, plot = TRUE)
+axgb$fit(iterations = 50L, plot = FALSE)
 p3 = axgb$plot_pareto_front_projections(wt_range = c(0.1, 0.9))
 p3
 ```
 
 ```{r, echo = FALSE}
-plot(p3)
+p3
 ```
 
 Then, we can nicely plot the results with patchwork.
@@ -360,8 +360,8 @@ library(patchwork)
 (p3  + coord_cartesian(xlim = c(0.1, 0.3), ylim = c(0, 0.0015)))
 ```
 
-```{r}
-plot(pareto_plots)
+```{r, echo = FALSE}
+pareto_plots
 ```
 
 Moreover, we can have a look at the parallel coordinates.
@@ -371,6 +371,6 @@ axgb$plot_parallel_coordinates()
 ```
 
 ```{r, echo = FALSE}
-load("par_coord_plot.RDS")
-plot(par_coord_plot)
+load("par_coord_plot.RData")
+par_coord_plot
 ```
