@@ -283,7 +283,7 @@ Tab 3: Dataset overview
 
 We want to demonstrate the main functionalities of AutoxgboostMC in a usecase using the *Adult Dataset*.
 It is based on a 1994 Census database and aims to determine whether a person makes over 50K a year.
-While we want to predict this binary classification problem as good as possible, we also want to prevent our model from discriminating a person's sex.
+While we want to predict this binary classification problem as good as possible, we also want to prevent our model from discriminating against a person's sex.
 To achieve this kind of fairness, we are also optimizing the well known f1 measure within each group.
 
 First, we access the dataset from the *OpenML* database by the `OpenML` R-package.
@@ -294,7 +294,8 @@ library(OpenML)
 adult = convertOMLDataSetToMlr(getOMLDataSet(1590))
 ```
 
-The goal for our analysis is to equally optimize the mean missclassification error as well as the fair f1 measure.
+The goal of our analysis is to equally optimize the mean missclassification error as well as a fairness measure.
+In this case, we defien a fairness measure as our model's absolute difference in F1-Scores between two groups.
 Hence, as a second step, we define our fair f1 measure by specifying the grouping variable `sex`.
 
 ```{r, eval = FALSE}
@@ -374,3 +375,7 @@ axgb$plot_parallel_coordinates()
 load("par_coord_plot.RData")
 par_coord_plot
 ```
+
+A big problem in human-in-the-loop approaches is often the reproduciblity of obtained results.
+In our case, if we set a seed before starting our analysis, and a user provides the code used
+in order to intervene in the process, the process is fully reproducible.
