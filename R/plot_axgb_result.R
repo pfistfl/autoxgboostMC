@@ -36,7 +36,6 @@ plot_pareto_front_projections = function(x = NULL, y = NULL, wt_range = c(0, 1),
   if (is.null(x)) x = self$measure_ids[1]
   if (is.null(y) & length(self$measures) >= 2L) y = self$measure_ids[2]
 
-
   measures = setNames(self$measures, self$measure_ids)
   minimize = vlapply(measures[c(x, y)], function(x) x$minimize)
 
@@ -54,7 +53,7 @@ plot_pareto_front_projections = function(x = NULL, y = NULL, wt_range = c(0, 1),
 
   p = self$plot_pareto_front(x, y, plotly = FALSE) +
     ggplot2::geom_point(data = df_focus$points, ggplot2::aes_string(x = x, y = y), color = "blue", shape = 16L, size = 3L, alpha = 0.8) +
-    ggplot2::geom_path(data = df_focus$line, ggplot2::aes_string(x = x, y = y), color = "blue", size = 1.5, alpha = .6)
+    ggplot2::geom_path( data = df_focus$line, ggplot2::aes_string(x = x, y = y)  , color = "blue", size = 1.5, alpha = .6)
 
   if (plotly) plotly::ggplotly(p)
   else p

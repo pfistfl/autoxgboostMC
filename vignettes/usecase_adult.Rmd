@@ -1,0 +1,121 @@
+---
+title: "Usecase - Adult Dataset"
+author: "Stefan Coors"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Usecase - Adult Dataset}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r}
+knitr::opts_chunk$set(
+  comment = "#>",
+  collapse = TRUE,
+  eval = FALSE
+)
+```
+
+## Usecase: Adult dataset
+
+We want to demonstrate the main functionalities of AutoxgboostMC in a use-case using the *Adult Dataset*.
+It is based on a 1994 Census database and aims to determine whether a person makes over 50K a year.
+While we want to predict this binary classification problem as good as possible, we also want to prevent our model from discriminating against a person's sex.
+To achieve this kind of fairness, we are also optimizing the well known F1 measure within each group.
+
+First, we access the dataset from the *OpenML* database by the `OpenML` R-package.
+It also allows to directly transform the dataset into a mlr-task object.
+
+```{r}
+library(OpenML)
+adult = convertOMLDataSetToMlr(getOMLDataSet(1590))
+```
+
+The goal of our analysis is to equally optimize the mean miss-classification error as well as a fairness measure.
+In this case, we define a fairness measure as our model's absolute difference in F1-Scores between two groups.
+Hence, as a second step, we define our fair F1 measure by specifying the grouping variable `sex`.
+
+```{r}
+data = getTaskData(adult)
+sex_fairf1 = setMeasurePars(fairf1, grouping = data$sex)
+```
+
+Now its time to create our AutoxgboostMC object.
+
+```{r}
+axgb = AutoxgboostMC$new(
+  task = adult, # adult task
+  measures = list(mmce, sex_fairf1) # measures to optimize
+)
+```
+
+We can now start the training process with some initial iterations.
+
+```{r}
+set.seed(20190606)
+axgb$fit(iterations = 20L, plot = FALSE)
+```
+
+After the fitting for the first time we can select a region of the Pareto front, we want to focus on
+and continue the training with more iterations.
+
+```{r}
+p1 = axgb$plot_pareto_front_projections(wt_range = c(0.1, 0.9))
+
+axgb$optimizer$set_possible_projections(c(0.1, 0.9))
+axgb$fit(iterations = 50L, plot = FALSE)
+p2 = axgb$plot_pareto_front_projections(wt_range = c(0.1, 0.9))
+```
+
+
+```{r, echo = FALSE}
+library(ggplot2)
+library(patchwork)
+load(file = "vignettes/results.RData")
+p1
+p2
+```
+
+
+We can repeat this process until we are happy with the results.
+
+```{r}
+axgb$optimizer$set_possible_projections(c(0.1, 0.9))
+axgb$fit(iterations = 50L, plot = FALSE)
+p3 = axgb$plot_pareto_front_projections(wt_range = c(0.1, 0.9))
+p3
+```
+
+```{r, echo = FALSE}
+p3
+```
+
+Then, we can nicely plot the results with patchwork.
+
+```{r}
+library(ggplot2)
+library(patchwork)
+(p1  + coord_cartesian(xlim = c(0.1, 0.3), ylim = c(0, 0.0015))) +
+(p2  + coord_cartesian(xlim = c(0.1, 0.3), ylim = c(0, 0.0015))) +
+(p3  + coord_cartesian(xlim = c(0.1, 0.3), ylim = c(0, 0.0015)))
+```
+
+```{r, echo = FALSE}
+pareto_plots
+```
+
+Moreover, we can have a look at the parallel coordinates.
+
+```{r}
+axgb$plot_parallel_coordinates()
+```
+
+```{r, echo = FALSE}
+load("par_coord_plot.RData")
+par_coord_plot
+```
+
+A big problem in human-in-the-loop approaches is often the reproducibility of obtained results.
+In our case, if we set a seed before starting our analysis, and a user provides the code used
+in order to intervene in the process, the process is thus fully reproducible.
