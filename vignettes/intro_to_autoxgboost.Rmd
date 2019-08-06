@@ -21,7 +21,6 @@ knitr::opts_chunk$set(
 ```{r}
 library(mlr)
 library(autoxgboostMC)
-# devtools::load_all()
 
 # Split into train and test data set.
 train.idx = sample(seq_len(768), 506)
@@ -49,6 +48,7 @@ axgb$fit(time_budget = 10L)
 ```
 
 We can print the result:
+
 ```{r}
 axgb
 ```
@@ -60,7 +60,7 @@ If we are not satisfied, we can continue the search process for more iterations:
 axgb$fit(time_budget = 5L)
 ```
 
-And then use the resulting model to predcit on our test data.
+And then use the resulting model to predict on our test data.
 
 ```{r}
 # Fit a model from the best
@@ -68,18 +68,18 @@ axgb$fit_final_model()
 axgb$predict(test.task)
 ```
 
+and create a Parallel Coordinates Plot:
 
 ```{r}
 axgb$plot_parallel_coordinates()
 ```
 
 
-The resullting model is saved in the `.$final_model` slot.
+The resulting model is saved in the `.$final_model` slot.
 
 ```{r}
 axgb$final_model
 ```
-
 
 
 ## Scenario 2: Optimizing Accuracy and Prediction Speed
@@ -101,17 +101,17 @@ axgb$plot_opt_result()
 
 ### Limiting the range of random projections in `parEgo`.
 
-In cases, where we deem a certain region of the pareto front more important, we can simply
+In cases, where we deem a certain region of the Pareto front more important, we can simply
 limit the range of the random projections allowed within `parEgo`.
 
-As we are usually not sure, how the tradeoff we want to provide looks like, `AutoxgboostMC`
-allows us to set a range for the tradeoff's we might want to make. This tradeoff can be
+As we are usually not sure, how the trade-off we want to provide looks like, `AutoxgboostMC`
+allows us to set a range for the trade-off's we might want to make. This trade-off can be
 adapted throughout the search process, to allow focusing on regions that
 This is done by setting a range of weights for the first measure in `parEGO`.
 By for example setting the range to $(0.0, 0.2)$, we can limit the importance of the first criterion to between
 $0$ and $20\%$ in comparison to the prediction time (both are scaled to [0, 1] before applying weights).
 
-We can visualize the impac for different projections:
+We can visualize the impact for different projections:
 
 ```{r, warning = FALSE}
 axgb$plot_pareto_front_projections(wt_range = c(0.0, 0.2))
@@ -126,6 +126,7 @@ axgb$optimizer$set_possible_projections(c(0.8, 1))
 ```
 
 Afterwards, we simply run the `.$fit` method again, to search in the selected space.
+
 ```{r}
 axgb$fit(time_budget = 20L)
 axgb$plot_pareto_front()
@@ -153,7 +154,7 @@ p = axgb$predict(test.task)
 
 ## Scenario 5: Optimizing a subjective measure.
 
-In this scenario, we aim to find a model, that optimizes a measure we can not compute directly from the data, as it heavily depends of our current judgement of the proposed models. This might be a measure that can for example be described as follows:
+In this scenario, we aim to find a model, that optimizes a measure we can not compute directly from the data, as it heavily depends of our current judgment of the proposed models. This might be a measure that can for example be described as follows:
 "I want a model that achieves a very low false positive rate. It needs to be interpretable and fair with respect to a certain characteristic (i.e. the variable race).
 Additionally, after looking at diagnosis plots, I can determine, that the relationships my model learns do correspond to the true underlying process,and thus provide a numerical rating for each model."
 
@@ -177,7 +178,7 @@ axgb$early_stopping_rounds = 5
 ### Predictive Performance
 
 A host of measures for predictive performance is available from the package `mlr`.
-See `mlr::listMeasures()` or the {mlr Tutorial](https://mlr.mlr-org.com/) for a full list.
+See `mlr::listMeasures()` or the [mlr Tutorial](https://mlr.mlr-org.com/) for a full list.
 
 ### Interpretability
 Several measures for interpretability have been defined in [Molnar et al., 2019](https://arxiv.org/abs/1904.03867).

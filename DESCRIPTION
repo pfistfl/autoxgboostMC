@@ -1,5 +1,5 @@
 Package: autoxgboostMC
-Title: Automatic Preprocessing, Fitting and Tuning for xgboost using multiple criteria.
+Title: Automatic Preprocessing, Fitting and Tuning for xgboost using multiple criteria
 Version: 0.0.0.9000
 Authors@R: c(person("Florian", "Pfisterer", email = "pfistererf@gmail.com", role = c("aut", "cre")),
     person("Janek", "Thomas", email = "janek.tho@gmail.com", role = c("aut")))
@@ -11,22 +11,22 @@ License: BSD_2_clause + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Depends:
-    R (>= 3.0.2),
+    R (>= 3.5.0)
+Imports:
     ParamHelpers (>= 1.10),
     mlr (>= 2.12),
     mlrMBO (>= 1.0.0),
-    mlrCPO
-Imports:
+    mlrCPO,
     BBmisc (>= 1.11),
     checkmate (>= 1.8.2),
     stringi,
-    DiceKriging,
     xgboost (>= 0.6.4),
     smoof,
     R6,
     log4r
 Suggests:
     autoiml,
+    DiceKriging,
     ggplot2,
     rpart,
     cmaes,
@@ -60,3 +60,5 @@ Collate:
     'autoxgbparset.R'
     'measures.R'
     'zzz.R'
+Remotes:
+    github::compstat-lmu/paper_2019_iml_measures

@@ -149,7 +149,7 @@ predict_classif_with_subevals = function(.model, .task = NULL, .newdata, ntreeli
   if (is.null(obj))
     .learner$par.vals$objective = ifelse(nc == 2L, "binary:logistic", "multi:softprob")
 
-  time.predict = mlr:::measureTime({
+  time.predict = measureTime({
   p = predict(m, newdata = data.matrix(convertDataFrameCols(.newdata, ints.as.num = TRUE)), ntreelimit = ntreelimit)
   })
 
@@ -187,7 +187,7 @@ predict_classif_with_subevals = function(.model, .task = NULL, .newdata, ntreeli
     }
   }
 
-  subset = mlr:::checkTaskSubset(NULL, size = nrow(.newdata))
+  subset = checkTaskSubset(NULL, size = nrow(.newdata))
   if(is.null(.task)) id = NULL else id = subset
   if(is.null(.task)) truth = NULL else truth = getTaskData(.task, target.extra = TRUE)$target
   pred = makePrediction(task.desc = td, row.names = rownames(.newdata), id = id, truth = truth,

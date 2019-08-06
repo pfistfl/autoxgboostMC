@@ -1,14 +1,15 @@
-#' @import mlr
 #' @import ParamHelpers
-#' @import smoof
+#' @import mlr
 #' @import mlrMBO
+#' @import smoof
+#' @import mlrCPO
 #' @import xgboost
 #' @import BBmisc
 #' @import checkmate
-#' @import mlrCPO
+#' @import R6
+#' @import log4r
 #' @importFrom stats predict
-#' @importFrom stats runif
-#' @importFrom stats aggregate
+#' @importFrom stats runif rnorm setNames aggregate quantile
 
 registerS3method("makeRLearner", "regr.autoxgboostMC", makeRLearner.regr.autoxgboostMC)
 registerS3method("trainLearner", "regr.autoxgboostMC", trainLearner.regr.autoxgboostMC)
