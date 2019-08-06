@@ -178,8 +178,9 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
       if (is.null(private$.control)) {
         private$.control = makeMBOControl(n.objectives = self$n_objectives, y.name = self$measure_ids)
         if (self$n_objectives > 1L) {
-          private$.control = setMBOControlMultiObj(private$.control, method = "dib", dib.indicator = "eps")
-          private$.control = setMBOControlInfill(private$.control, crit = makeMBOInfillCritDIB(cb.lambda = 2L))
+          private$.control = setMBOControlMultiObj(private$.control, method = "parego")
+          # private$.control = setMBOControlMultiObj(private$.control, method = "dib", dib.indicator = "eps")
+          # private$.control = setMBOControlInfill(private$.control, crit = makeMBOInfillCritDIB(cb.lambda = 2L))
         }
       }
 
