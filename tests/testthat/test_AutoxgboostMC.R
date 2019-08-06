@@ -16,7 +16,6 @@ test_that("autoxgboostMC works on different tasks for single measure",  {
   for (t in tasks) {
     axgb = AutoxgboostMC$new(t)
     expect_class(axgb, "R6")
-    axgb$tune_threshold = FALSE
     axgb$fit(time_budget = 5L, plot = FALSE)
     expect_class(axgb$opt_result, "MBOSingleObjResult")
     expect_class(axgb$final_learner, "Learner")
@@ -31,18 +30,16 @@ test_that("Multiple measures work",  {
   fairf11 = setMeasurePars(fairf1, grouping = function(df) as.factor(df$age > 30))
   axgb = AutoxgboostMC$new(pid.task, measures = list(acc, fairf11))
   expect_class(axgb, "R6")
-  axgb$tune_threshold = FALSE
   if (EXPENSIVE_TESTS) {
     expect_warning(axgb$fit(time_budget = 5L, plot = FALSE))
-    expect_class(axgb$opt_result, "MBOResult")
+    expect_class(axgb$optimizer$opt_result, "MBOResult")
     expect_class(axgb$final_learner, "Learner")
+    axgb$fit_final_model()
     expect_class(axgb$final_model, "WrappedModel")
     p = axgb$predict(pid.task)
     expect_class(p, "Prediction")
   }
 })
-
-
 
 context("Printer")
 test_that("autoxgboost printer works", {

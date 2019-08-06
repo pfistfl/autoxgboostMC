@@ -145,7 +145,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
       catf("AutoxgboostMC Learner")
       catf("Task: %s (%s)", self$task$task.desc$id, self$task$type)
       catf("Measures: %s", paste0(self$measure_ids, collapse = ","))
-      catf("Trained: %s", ifelse(is.null(self$opt_result), "no", "yes"))
+      catf("Trained: %s", ifelse(is.null(self$optimizer$opt_result), "no", "yes"))
       print(self$optimizer)
       catf("\n\nPreprocessing pipeline:")
       print(self$pipeline$preproc_pipeline)
