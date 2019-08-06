@@ -28,7 +28,7 @@ NULL
 fairpr = mlr::makeMeasure(id = "fairness.pr", minimize = TRUE, properties = c("classif", "response", "req.task", "req.pred", "req.truth"),
   extra.args = list(), best = 0, worst = 1,
   fun = function(task, model, pred, feats, extra.args) {
-    groups = get_grouping(task, extra.args, 2L)
+    groups = get_grouping(task, pred, extra.args, 2L)
     fs = sapply(split(pred$data, f = groups), function(x) {
      mean(x$response == pred$task.desc$positive, na.rm = TRUE)
     })

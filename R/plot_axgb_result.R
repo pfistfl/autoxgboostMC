@@ -82,7 +82,7 @@ plot_opt_path = function() {
   p = ggplot2::ggplot(pdf) +
     ggplot2::geom_point(ggplot2::aes(x = iter, y = value, color = measure), alpha = 0.7) +
     ggplot2::geom_path(ggplot2::aes(x = iter, y = value, color = measure), alpha = 0.4) +
-    ggplot2::geom_path(ggplot2::aes(x = iter, y = value_opt, color = measure), alpha = 0.6, size = 1.5L) +
+    ggplot2::geom_path(ggplot2::aes(x = iter, y = value_opt, color = measure), alpha = 0.6, size = 1.5) +
     ggplot2::theme_bw() +
     ggplot2::ylab("") +
     ggplot2::facet_grid(measure ~ ., scales = "free_y") +
