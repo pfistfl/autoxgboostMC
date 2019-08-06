@@ -16,3 +16,4 @@ xgboost.model
 test.R
 ^doc$
 ^Meta$
+^codecov\.yml$

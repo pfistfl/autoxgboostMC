@@ -20,8 +20,8 @@ knitr::opts_chunk$set(
 
 ```{r}
 library(mlr)
-# library(autoxgboostMC)
-devtools::load_all()
+library(autoxgboostMC)
+# devtools::load_all()
 
 # Split into train and test data set.
 train.idx = sample(seq_len(768), 506)
@@ -93,8 +93,6 @@ axgb$fit(time_budget = 20L)
 And visualize:
 
 ```{r}
-# Look at mosmafs pareto front plots
-# Pareto front should not be convex
 axgb$plot_pareto_front()
 axgb$plot_parallel_coordinates()
 axgb$plot_opt_result()
@@ -115,7 +113,7 @@ $0$ and $20\%$ in comparison to the prediction time (both are scaled to [0, 1] b
 
 We can visualize the impac for different projections:
 
-```{r}
+```{r, warning = FALSE}
 axgb$plot_pareto_front_projections(wt_range = c(0.0, 0.2))
 axgb$plot_pareto_front_projections(wt_range = c(0.2, 0.8))
 axgb$plot_pareto_front_projections(wt_range = c(0.8, 1))
@@ -278,3 +276,104 @@ Tab2: Pareto Front + Select range for measures + Select importance of measures.
 
 Tab 3: Dataset overview
 
+
+## Usecase: Adult dataset
+
+We want to demonstrate the main functionalities of AutoxgboostMC in a usecase using the *Adult Dataset*.
+It is based on a 1994 Census database and aims to determine whether a person makes over 50K a year.
+While we want to predict this binary classification problem as good as possible, we also want to prevent our model from discriminating against a person's sex.
+To achieve this kind of fairness, we are also optimizing the well known f1 measure within each group.
+
+First, we access the dataset from the *OpenML* database by the `OpenML` R-package.
+It also allows to directly transform the dataset into a mlr-task object.
+
+```{r, eval = FALSE}
+library(OpenML)
+adult = convertOMLDataSetToMlr(getOMLDataSet(1590))
+```
+
+The goal of our analysis is to equally optimize the mean missclassification error as well as a fairness measure.
+In this case, we defien a fairness measure as our model's absolute difference in F1-Scores between two groups.
+Hence, as a second step, we define our fair f1 measure by specifying the grouping variable `sex`.
+
+```{r, eval = FALSE}
+data = getTaskData(adult)
+sex_fairf1 = setMeasurePars(fairf1, grouping = data$sex)
+```
+
+Now its time to create our AutoxgboostMC object.
+
+```{r, eval = FALSE}
+axgb = AutoxgboostMC$new(
+  task = adult, # adult task
+  measures = list(mmce, sex_fairf1) # measures to optimize
+)
+```
+
+We can now start the training process with some initial iterations.
+
+```{r, eval = FALSE}
+set.seed(20190606)
+axgb$fit(iterations = 20L, plot = FALSE)
+```
+
+After the fitting for the first time we can select a region of the pareto front, we want to focus on and continue the training with more iterations.
+
+```{r, eval = FALSE}
+p1 = axgb$plot_pareto_front_projections(wt_range = c(0.1, 0.9))
+
+axgb$optimizer$set_possible_projections(c(0.1, 0.9))
+axgb$fit(iterations = 50L, plot = FALSE)
+p2 = axgb$plot_pareto_front_projections(wt_range = c(0.1, 0.9))
+```
+
+
+```{r, echo = FALSE}
+library(ggplot2)
+library(patchwork)
+load(file = "results.RData")
+p1
+p2
+```
+
+
+We can repeat this process until we are happy with the results.
+
+```{r, eval = FALSE}
+axgb$optimizer$set_possible_projections(c(0.1, 0.9))
+axgb$fit(iterations = 50L, plot = FALSE)
+p3 = axgb$plot_pareto_front_projections(wt_range = c(0.1, 0.9))
+p3
+```
+
+```{r, echo = FALSE}
+p3
+```
+
+Then, we can nicely plot the results with patchwork.
+```{r, eval = FALSE}
+library(ggplot2)
+library(patchwork)
+(p1  + coord_cartesian(xlim = c(0.1, 0.3), ylim = c(0, 0.0015))) +
+(p2  + coord_cartesian(xlim = c(0.1, 0.3), ylim = c(0, 0.0015))) +
+(p3  + coord_cartesian(xlim = c(0.1, 0.3), ylim = c(0, 0.0015)))
+```
+
+```{r, echo = FALSE}
+pareto_plots
+```
+
+Moreover, we can have a look at the parallel coordinates.
+
+```{r, eval = FALSE}
+axgb$plot_parallel_coordinates()
+```
+
+```{r, echo = FALSE}
+load("par_coord_plot.RData")
+par_coord_plot
+```
+
+A big problem in human-in-the-loop approaches is often the reproduciblity of obtained results.
+In our case, if we set a seed before starting our analysis, and a user provides the code used
+in order to intervene in the process, the process is fully reproducible.

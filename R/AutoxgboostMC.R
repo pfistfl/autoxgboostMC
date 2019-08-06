@@ -104,8 +104,7 @@ AutoxgboostMC = R6::R6Class("AutoxgboostMC",
 
     initialize = function(task, measures = NULL, parset = NULL, nthread = NULL,
       pipeline  = AxgbPipelineXGB$new(),
-      optimizer = AxgbOptimizerSMBO$new()
-      ) {
+      optimizer = AxgbOptimizerSMBO$new()) {
 
       self$task = assert_class(task, "SupervisedTask")
       assert_list(measures, types = "Measure", null.ok = TRUE)
