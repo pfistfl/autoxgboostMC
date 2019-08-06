@@ -10,7 +10,6 @@
 #' @importFrom stats runif
 #' @importFrom stats aggregate
 
-
 registerS3method("makeRLearner", "regr.autoxgboostMC", makeRLearner.regr.autoxgboostMC)
 registerS3method("trainLearner", "regr.autoxgboostMC", trainLearner.regr.autoxgboostMC)
 registerS3method("predictLearner", "regr.autoxgboostMC", predictLearner.regr.autoxgboostMC)
