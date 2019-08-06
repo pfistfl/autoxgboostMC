@@ -84,3 +84,28 @@ generateCatFeatPipeline = function(task, impact.encoding.boundary) {
   }
   return(cat.pipeline)
 }
+
+perf_trafo_minimize = function(perf, measures) {
+  expect_list(measures)
+  expect_numeric(perf)
+  minimize = setNames(vlapply(measures, function(x) x$minimize), vcapply(measures, function(x) x$id))
+  do_maximize = names(minimize[!minimize])
+  if (length(do_maximize) > 0) perf[do_maximize] = - perf[do_maximize]
+  return(perf)
+}
+
+perf_retrafo = function(x, measure) {
+  expect_list(measures)
+  expect_numeric(x)
+  if (!measure$minimize) x = -x
+  return(x)
+}
+
+perf_retrafo_opt_path = function(opdf, measures) {
+  expect_list(measures)
+  expect_data_frame(opdf)
+  minimize = setNames(vlapply(measures, function(x) x$minimize), vcapply(measures, function(x) x$id))
+  do_maximize = names(minimize[!minimize])
+  opdf[, do_maximize] = - opdf[, do_maximize]
+  return(opdf)
+}

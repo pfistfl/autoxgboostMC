@@ -159,12 +159,13 @@ AxgbPipelineXGB = R6::R6Class("AxgbPipelineXGB",
           pred = predict(mod, transf_tasks$test_task)
           if (private$.has_thresholded_measure) pred = setThreshold(pred, x$threshold)
           res = performance(pred, model = mod, task = transf_tasks$test_task, measures = private$.measures)
+          res = perf_trafo_minimize(res, private$.measures)
           if (subevals) attr(res, "extras") = list(.subevals = private$make_subevals(mod, transf_tasks$test_task, private$.measures))
           return(res)
         },
         par.set = private$.parset,
         n.objectives = length(private$.measures),
-        minimize = self$measures_minimize,
+        minimize = rep(TRUE, length(private$.measures)),
         noisy = FALSE, has.simple.signature = FALSE
       )
     }
@@ -248,7 +249,8 @@ AxgbPipelineXGB = R6::R6Class("AxgbPipelineXGB",
         if (private$.has_thresholded_measure) {
           prd = setThreshold(prd, rw$threshold)
         }
-        performance(prd, model = mod, task = task, measures = measures)
+        res = performance(prd, model = mod, task = task, measures = measures)
+        perf_trafo_minimize(res, measures)
       }))
 
       # Remove thresholds in case we have no thresholded measure

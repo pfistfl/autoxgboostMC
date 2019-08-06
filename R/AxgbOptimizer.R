@@ -29,7 +29,7 @@ AxgbOptimizer = R6::R6Class("AxgbOptimizer",
         }
         # FIXME: Nice Printer for results:
         catf("\nWith tuning result:")
-        for (i in seq_along(self$measures)) catf("    %s = %.3f", self$measures[[i]]$id, self$opt_result$y[[i]])
+        for (i in seq_along(self$measures)) catf("    %s = %.3f", self$measures[[i]]$id, perf_retrafo(self$opt_result$y[[i]], self$measures[[i]]))
         thr = self$get_best(".threshold")
         if (!is.null(thr)) {
           if (length(thr) == 1) {
@@ -100,6 +100,12 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
       pars = pars[!vlapply(pars, is.na)]
       return(pars)
     },
+    set_objective_preferences = function(lst) {
+      assert_list(lst, names = "named")
+      assert_true(all(names(lst) %in% self$measure_ids()))
+      assert_true(all(vlapply(lst, function(x) all(names(x) %in% c("lower", "upper")))))
+      stop("This does nothing right now")
+    },
     set_possible_projections = function(measure_weights) {
       if(self$n_objectives == 2L) {
         assert_numeric(measure_weights, len = 2, lower = 0, upper = 1)
@@ -133,7 +139,8 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
       plot(self$opt_result)
     },
     get_opt_path_df = function() {
-      as.data.frame(mlrMBO:::getOptStateOptPath(self$opt_state))
+      df = as.data.frame(mlrMBO:::getOptStateOptPath(self$opt_state))
+      perf_retrafo_opt_path(df, private$.measures)
     },
     get_best = function(what) {self$opt_result$opt.path$env$extra[[self$get_best_ind(self$opt_result)]][[what]]},
     get_best_ind = function(opt_result) {

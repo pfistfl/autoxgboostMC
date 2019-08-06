@@ -12,6 +12,7 @@ plot_pareto_front = function(x = NULL, y = NULL, plotly = FALSE) {
   measures = setNames(self$measures, self$measure_ids)
 
   front_data = as.data.frame(getOptPathParetoFront(mlrMBO:::getOptStateOptPath(self$optimizer$opt_state)))
+  front_data = perf_retrafo_opt_path(front_data, self$measures)
   front = get_pareto_data_nonconvex(front_data, x, y, measures[[x]]$minimize)
 
   p = ggplot2::ggplot(df, ggplot2::aes_string(x = x, y = y)) +
@@ -40,6 +41,7 @@ plot_pareto_front_projections = function(x = NULL, y = NULL, wt_range = c(0, 1),
   minimize = vlapply(measures[c(x, y)], function(x) x$minimize)
 
   front_data = as.data.frame(getOptPathParetoFront(mlrMBO:::getOptStateOptPath(self$optimizer$opt_state)))
+  front_data = perf_retrafo_opt_path(front_data, self$measures)
   df = get_pareto_data_nonconvex(front_data, x, y, measures[[x]]$minimize)
   points_normal = normalize(df$points, "range")
   best_points = viapply(wt_range, function(wt) {
