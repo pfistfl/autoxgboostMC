@@ -40,7 +40,8 @@ Suggests:
     testthat,
     shiny,
     vctrs,
-    parcoords
+    parcoords,
+    covr
 RoxygenNote: 6.1.1
 VignetteBuilder: knitr
 Collate:

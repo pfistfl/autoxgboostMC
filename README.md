@@ -4,7 +4,7 @@
 
 
 [![Build Status](https://travis-ci.org/pfistfl/autoxgboostMC.svg?branch=master)](https://travis-ci.org/pfistfl/autoxgboostMC)
-[![Coverage Status](https://coveralls.io/repos/github/pfistfl/autoxgboostMC/badge.svg?branch=master)](https://coveralls.io/github/pfistfl/autoxgboostMC?branch=master)
+[![Codecov test coverage](https://codecov.io/gh/pfistfl/autoxgboostMC/branch/master/graph/badge.svg)](https://codecov.io/gh/pfistfl/autoxgboostMC?branch=master)
 
 
 * Installing the development version
