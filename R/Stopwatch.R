@@ -10,14 +10,13 @@ Stopwatch = R6::R6Class("Stopwatch",
     initialize = function(time_budget = NULL, iterations = NULL, start = TRUE) {
       assert_flag(start)
       if (is.null(time_budget) & is.null(iterations))
-        stop("At least one of time_budget and iterations must be non-null!")
+        stop("At least one of time_budget and iterations must be provided!")
 
       self$time_budget = assert_integerish(time_budget, null.ok = TRUE)
       if (is.null(time_budget)) self$time_budget = Inf
 
       self$max_iterations = assert_integerish(iterations, null.ok = TRUE)
       if (is.null(iterations)) self$max_iterations = Inf
-      # FIXME: Write training time  from outside
       if (is.null(self$per_fit_time)) self$set_per_fit_time()
       if (start) self$start()
     },
@@ -43,7 +42,7 @@ Stopwatch = R6::R6Class("Stopwatch",
       self$start()
     },
     increment_iter = function(by = 1L) {
-      assert_integerish(by)
+      assert_count(by)
       self$current_iter = self$current_iter + by
     }
   )

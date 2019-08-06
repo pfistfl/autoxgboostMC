@@ -20,8 +20,8 @@ knitr::opts_chunk$set(
 
 ```{r}
 library(mlr)
-# library(autoxgboostMC)
-devtools::load_all()
+library(autoxgboostMC)
+# devtools::load_all()
 
 # Split into train and test data set.
 train.idx = sample(seq_len(768), 506)
@@ -93,8 +93,6 @@ axgb$fit(time_budget = 20L)
 And visualize:
 
 ```{r}
-# Look at mosmafs pareto front plots
-# Pareto front should not be convex
 axgb$plot_pareto_front()
 axgb$plot_parallel_coordinates()
 axgb$plot_opt_result()
@@ -115,7 +113,7 @@ $0$ and $20\%$ in comparison to the prediction time (both are scaled to [0, 1] b
 
 We can visualize the impac for different projections:
 
-```{r}
+```{r, warning = FALSE}
 axgb$plot_pareto_front_projections(wt_range = c(0.0, 0.2))
 axgb$plot_pareto_front_projections(wt_range = c(0.2, 0.8))
 axgb$plot_pareto_front_projections(wt_range = c(0.8, 1))
