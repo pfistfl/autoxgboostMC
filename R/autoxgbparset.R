@@ -49,8 +49,3 @@ autoxgbparset.mixed = makeParamSet(
   makeNumericParam("alpha", lower = -10, upper = 10, trafo = function(x) 2^x),
   makeNumericParam("subsample", lower = 0.5, upper = 1)
 )
-
-# Parameter values random forest
-parvals_rf = data.frame(eta = 0.2, gamma = 0, max_depth = 12, colsample_bytree =  0.50,
-  colsample_bylevel = 0.8, lambda =  0, alpha =  -10, subsample = 0.5, nrounds =  1,
-  scale_pos_weight =  1, num_parallel_tree = 500L)
