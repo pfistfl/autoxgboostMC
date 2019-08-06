@@ -150,20 +150,23 @@ AxgbPipelineXGB = R6::R6Class("AxgbPipelineXGB",
       return(lrn)
     },
     make_objective_function_multicrit = function(transf_tasks) {
-      smoof::makeMultiObjectiveFunction(name = "optimizeWrapperMultiCrit",
-      fn = function(x, subevals = FALSE) {
-        x = x[!vlapply(x, is.na)]
-        lrn = setHyperPars(private$.baselearner, par.vals = x[vlapply(names(x), `!=`, "threshold")])
-        mod = train(lrn, transf_tasks$train_task)
-        pred = predict(mod, transf_tasks$test_task)
-        if (private$.has_thresholded_measure) pred = setThreshold(pred, x$threshold)
-        res = performance(pred, model = mod, task = transf_tasks$test_task, measures = private$.measures)
-
-        if (subevals) attr(res, "extras") = list(.subevals = private$make_subevals(mod, transf_tasks$test_task, private$.measures))
-        return(res)
-      },
-      par.set = private$.parset, n.objectives = length(private$.measures), minimize = self$measures_minimize,
-      noisy = FALSE, has.simple.signature = FALSE)
+      smoof::makeMultiObjectiveFunction(
+        name = "optimizeWrapperMultiCrit",
+        fn = function(x, subevals = FALSE) {
+          x = x[!vlapply(x, is.na)]
+          lrn = setHyperPars(private$.baselearner, par.vals = x[vlapply(names(x), `!=`, "threshold")])
+          mod = train(lrn, transf_tasks$train_task)
+          pred = predict(mod, transf_tasks$test_task)
+          if (private$.has_thresholded_measure) pred = setThreshold(pred, x$threshold)
+          res = performance(pred, model = mod, task = transf_tasks$test_task, measures = private$.measures)
+          if (subevals) attr(res, "extras") = list(.subevals = private$make_subevals(mod, transf_tasks$test_task, private$.measures))
+          return(res)
+        },
+        par.set = private$.parset,
+        n.objectives = length(private$.measures),
+        minimize = self$measures_minimize,
+        noisy = FALSE, has.simple.signature = FALSE
+      )
     }
   ),
   active = list(
@@ -207,9 +210,11 @@ AxgbPipelineXGB = R6::R6Class("AxgbPipelineXGB",
   ),
   private = list(
     make_subevals = function(mod, task, measures) {
-      n_classes = length(task$task.desc$class.levels)
 
+      # Create thresholds
       if (private$.has_thresholded_measure) {
+        # Thresholds dimensions depend on number of classes
+        n_classes = length(task$task.desc$class.levels)
         # Compute a set of different thresholds and nrounds
         ncomb = ceiling(1000^(1 / n_classes))
         threshold_vals = mlrMBO:::combWithSum(ncomb, n_classes) / ncomb
@@ -221,29 +226,39 @@ AxgbPipelineXGB = R6::R6Class("AxgbPipelineXGB",
         }
         thresholds = BBmisc::convertRowsToList(threshold_vals, name.vector = TRUE)
       } else {
-        threshold_vals = NULL
+        threshold_vals = 0.5
       }
 
-      ntreelimit_vals  = quantile(seq_len(mod$learner$par.vals$nrounds), probs = c(25, 50, 75, 90) / 100, type = 1)
+      # Create different nrounds values.
+      ntreelimit_vals = quantile(seq_len(mod$learner$par.vals$nrounds),
+        probs = c(25, 50, 75, 90) / 100, type = 1)
+      ntreelimit_vals = ntreelimit_vals[ntreelimit_vals < mod$learner$par.vals$nrounds]
+      ntreelimit_vals = ntreelimit_vals[!duplicated(ntreelimit_vals)]
 
-      # Compute performances
-      ydf = do.call("rbind", lapply(ntreelimit_vals, function(ntreelimit) {
-        # Predict with ntreelimit < nrounds trees
-        mod$learner$par.vals$ntreelimit = ntreelimit
+      xdf = data.frame(do.call("rbind", lapply(ntreelimit_vals, function(x) data.frame(nrounds = x, threshold = threshold_vals))))
+
+      # Compute performances for 'nrounds X thresholds'
+      ydf = do.call("rbind",
+       lapply(convertRowsToList(xdf, name.vector = TRUE), function(rw) {
+        # Set nrounds
+        mod$learner$par.vals$ntreelimit = rw$nrounds
         prd = predict(mod, task = task)
+
         # Predict for different thresholds
         if (private$.has_thresholded_measure) {
-          do.call("rbind", lapply(thresholds, function(threshold) {
-            prd = setThreshold(prd, threshold)
-            performance(prd, model = mod, task = task, measures = measures)
-          }))
-        } else {
-          performance(prd, model = mod, task = task, measures = measures)
+          prd = setThreshold(prd, rw$threshold)
         }
+        performance(prd, model = mod, task = task, measures = measures)
       }))
+
+      # Remove thresholds in case we have no thresholded measure
+      if (!private$.has_thresholded_measure) {
+        xdf$threshold = NULL
+      }
+
       list(
         y = ydf[!duplicated(ydf), ],
-        x = data.frame(do.call("rbind", lapply(ntreelimit_vals, function(x) cbind(ntreelimit = x, threshold = threshold_vals))))[!duplicated(ydf), , drop = FALSE]
+        x = xdf[!duplicated(ydf), , drop = FALSE]
       )
     },
     make_subeval_parset = function(task) {

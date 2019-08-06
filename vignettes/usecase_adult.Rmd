@@ -45,7 +45,7 @@ Now its time to create our AutoxgboostMC object.
 
 ```{r}
 axgb = AutoxgboostMC$new(
-  task = adult, # adult task
+  task = subsetTask(adult, 1:200), # adult task
   measures = list(mmce, sex_fairf1) # measures to optimize
 )
 ```
@@ -54,7 +54,7 @@ We can now start the training process with some initial iterations.
 
 ```{r}
 set.seed(20190606)
-axgb$fit(iterations = 20L, plot = FALSE)
+axgb$fit(iterations = 20L, plot = TRUE)
 ```
 
 After the fitting for the first time we can select a region of the Pareto front, we want to focus on

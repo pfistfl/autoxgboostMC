@@ -73,6 +73,7 @@ get_pareto_data_nonconvex = function(front_data, x, y, x_minimize) {
 #' Optimization path
 plot_opt_path = function() {
   opt_df = self$get_opt_path_df()
+  opt_df = opt_df[!is.na(opt_df$prop.type), ] # Delete Subevals
   opt_df$iter = seq_len(nrow(opt_df))
   cumbest = function(x, minimize) {if(minimize) cummin(x) else cummax(x)}
   measure_minimize = setNames(self$measure_minimize, self$measure_ids)
@@ -80,12 +81,13 @@ plot_opt_path = function() {
     data.frame("value" = opt_df[,x], "measure" = x, "iter" = opt_df$iter, "value_opt" = cumbest(opt_df[,x], measure_minimize[x]))))
   p = ggplot2::ggplot(pdf) +
     ggplot2::geom_point(ggplot2::aes(x = iter, y = value, color = measure), alpha = 0.7) +
-    ggplot2::geom_path(ggplot2::aes(x = iter, y = value, color = measure), alpha = 0.5) +
-    ggplot2::geom_path(ggplot2::aes(x = iter, y = value_opt, color = measure), alpha = 0.8, size = 2L) +
+    ggplot2::geom_path(ggplot2::aes(x = iter, y = value, color = measure), alpha = 0.4) +
+    ggplot2::geom_path(ggplot2::aes(x = iter, y = value_opt, color = measure), alpha = 0.6, size = 1.5L) +
     ggplot2::theme_bw() +
     ggplot2::ylab("") +
     ggplot2::facet_grid(measure ~ ., scales = "free_y") +
-    ggplot2::guides(color = FALSE)
+    ggplot2::guides(color = FALSE) +
+    ggplot2::scale_color_brewer(palette = "Set1")
   print(p)
 }
 

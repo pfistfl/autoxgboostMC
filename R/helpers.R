@@ -52,18 +52,6 @@ get_univariate_set = function(opt_state, xy, measures) {
   list(x = xy$x[idx, ], y = xy$y[idx])
 }
 
-get_subevals = function(prop, y) {
-  x = prop$prop.points
-  x$nrounds = NULL
-  subevals = attr(y, "extra")$.subevals$x
-  x = cbind(x, nrounds = subevals$ntreelimit)
-  if (is.null(subevals$V2)) {
-    x$threshold = subevals$x$V2
-  }
-  y = attr(y, "extra")$.subevals$y
-  if (is.null(dim(y))) y = data.frame(y)
-  return(list(x = x[, colnames(prop$prop.points)], y = convertRowsToList(y)))
-}
 
 # This generates a preprocessing pipeline to handle categorical features
 # @param task: the task

@@ -158,15 +158,17 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
 
       if (subevals) {
         xy_pareto = get_subevals(prop, y)
-        if (length(y) >= 2L) {
-         xy_pareto = get_pareto_set(self$opt_state, xy_pareto, private$.parset, private$.measures)
-        } else {
-          xy_pareto = get_univariate_set(self$opt_state, xy_pareto, private$.measures)
+        if (!is.null(xy_pareto)) {
+          if (length(y) >= 2L) {
+            xy_pareto = get_pareto_set(self$opt_state, xy_pareto, private$.parset, private$.measures)
+          } else {
+            xy_pareto = get_univariate_set(self$opt_state, xy_pareto, private$.measures)
+          }
+          if (length(xy_pareto$y) > 0) {
+            updateSMBO(self$opt_state, x = rbind(prop$prop.points, xy_pareto$x), y = c(list(y), xy_pareto$y))
+          }
         }
-        if (length(xy_pareto$y) > 0) updateSMBO(self$opt_state, x = xy_pareto$x, y = xy_pareto$y)
-      }
-
-      updateSMBO(self$opt_state, x = prop$prop.points, y = y)
+      } else updateSMBO(self$opt_state, x = prop$prop.points, y = y)
       self$watch$increment_iter()
       if(plot) self$plot_opt_path()
     },
@@ -263,3 +265,17 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
     }
   )
 )
+
+#' Extract sub-evaluations from the data.frame
+get_subevals = function(prop, y) {
+  subevals = attr(y, "extra")$.subevals
+  if (!is.null(subevals$y)) {
+    x = prop$prop.points
+    x$nrounds = x$threshold = NULL
+    x = cbind(x, subevals$x)
+    if (is.null(dim(subevals$y))) subevals$y = data.frame(subevals$y)
+    return(list(x = x[, colnames(prop$prop.points)], y = convertRowsToList(subevals$y)))
+  } else {
+    return(NULL)
+  }
+}
