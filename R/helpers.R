@@ -95,7 +95,7 @@ perf_trafo_minimize = function(perf, measures) {
 }
 
 perf_retrafo = function(x, measure) {
-  expect_list(measures)
+  expect_class(measure, "Measure")
   expect_numeric(x)
   if (!measure$minimize) x = -x
   return(x)

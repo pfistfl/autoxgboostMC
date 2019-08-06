@@ -27,6 +27,7 @@ context("AutoxgboostMC")
 
 context("Multicrit")
 test_that("Multiple measures work",  {
+  library(mlr)
   fairf11 = setMeasurePars(fairf1, grouping = function(df) as.factor(df$age > 30))
   axgb = AutoxgboostMC$new(pid.task, measures = list(acc, fairf11))
   expect_class(axgb, "R6")
@@ -43,6 +44,7 @@ test_that("Multiple measures work",  {
 
 context("Printer")
 test_that("autoxgboost printer works", {
+  library(mlr)
   mod = AutoxgboostMC$new(pid.task, measures = list(auc))
   suppressWarnings(mod$fit(time_budget = 6L, plot = FALSE))
   expect_output(print(mod), "AutoxgboostMC tuning result")

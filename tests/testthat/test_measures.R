@@ -1,5 +1,6 @@
 context("Measures")
 test_that("Fairness measures work",  {
+  library(mlr)
   fairf11 = setMeasurePars(fairf1, grouping = function(df) as.factor(df$age > 30))
   fairpr1 = setMeasurePars(fairpr, grouping = function(df) as.factor(df$age > 30))
   fairppv1 = setMeasurePars(fairppv, grouping = function(df) as.factor(df$age > 30))
@@ -19,6 +20,7 @@ test_that("Fairness measures work",  {
 
 context("Robustness")
 test_that("Robustness measures",  {
+  library(mlr)
   tasks = list(
   sonar.task, # binary classification
   iris.fac,   # binary classification with factors
@@ -39,6 +41,7 @@ test_that("Robustness measures",  {
 # FIXME: Include this when measures are faster.
 context("Interpretability")
 test_that("Robustness measures",  {
+  library(mlr)
   lrn = makeLearner("classif.rpart", predict.type = "prob")
   task = subsetTask(pid.task, subset = sample(c(1:100, 500:600)), features = 1:2)
   mod = train(lrn, task)
