@@ -33,7 +33,8 @@ trainLearner.classif.autoxgboostMC = function(.learner, .task, .subset, .weights
 
   .task = subsetTask(.task, .subset)
   axgb = AutoxgboostMC$new(.task, measures = measures)
-  axgb$fit(time.budget = time.budget, iterations = iterations)
+  axgb$fit(time_budget = time.budget, iterations = iterations)
+  axgb$fit_final_model()
   return(axgb)
 }
 
