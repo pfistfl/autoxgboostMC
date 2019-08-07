@@ -26,7 +26,7 @@ get_pareto_set = function(opt_state, xy, ps, measures) {
   y.names = vcapply(measures, function(x) x$id)
   op = makeOptPathDF(par.set = ps, y.names = y.names, minimize = minimize)
   for (i in seq_len(nrow(xy$x))) {
-    addOptPathEl(op = op, x = convertRowsToList(xy$x)[[i]], y = xy$y[[i]])
+    addOptPathEl(op = op, x = convertRowsToList(xy$x)[[i]], y = unlist(xy$y[[i]]))
   }
   odf = as.data.frame(opt_state$opt.path)
   for (j in seq_len(nrow(odf))) {
@@ -43,11 +43,7 @@ get_univariate_set = function(opt_state, xy, measures) {
   minimize = vlapply(measures, function(x) x$minimize)
   y.names = vcapply(measures, function(x) x$id)
   odf = as.data.frame(opt_state$opt.path)
-  if (minimize) {
-    idx = which(xy$y <= quantile(c(odf[, y.names], unlist(xy$y)), 0.1))
-  } else {
-    idx = which(xy$y >= quantile(c(odf[, y.names], unlist(xy$y)), 0.9))
-  }
+  idx = which(unlist(xy$y) <= quantile(c(odf[, y.names], unlist(xy$y)), 0.1))
   idx = intersect(seq_len(nrow(xy$x)), idx)
   list(x = xy$x[idx, ], y = xy$y[idx])
 }

@@ -102,9 +102,38 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
     },
     set_objective_preferences = function(lst) {
       assert_list(lst, names = "named")
-      assert_true(all(names(lst) %in% self$measure_ids()))
-      assert_true(all(vlapply(lst, function(x) all(names(x) %in% c("lower", "upper")))))
-      stop("This does nothing right now")
+      assert_true(all(names(lst) %in% self$measure_ids))
+      assert_true(all(vlapply(lst, function(x) all(names(x) %in% c("best", "worst")))))
+      def = setNames(lapply(private$.measures, function(x) c(best = x$best, worst = x$worst)),
+        self$measure_ids)
+      lst = Map(insert, def, lst)
+
+      opt_y = getOptPathY(mlrMBO:::getOptStateOptPath(self$opt_state))
+      pareto_idx = rownames(mco::paretoFilter(as.matrix(opt_y)))
+      opt_y = perf_retrafo_opt_path(data.frame(opt_y), self$measures)
+
+      # Filter according to the input criteria:
+      idx = Reduce(intersect, Map(function(x, filter) {
+        if (filter["best"] > filter["worst"])
+          which((x > filter["worst"]) & (x < filter["best"]))
+        else
+          which((x < filter["worst"]) & (x > filter["best"]))
+      }, opt_y, lst))
+      if (length(intersect(as.character(idx), pareto_idx)) == 0)
+        stop("No element on the pareto front for the specified range")
+
+      # Find weights that optimize the respective optimal points.
+      pdf = mlrMBO:::generateParEgoDfData(self$opt_state)
+      possible_weights = mlrMBO:::combWithSum(1000, self$n_objectives) / 1000
+      y_minimizer = apply(possible_weights, 1, function(x, res) {
+        df = data.frame(mlrMBO:::generateParEgoDf(res, x))
+        which.min(df$y.scalar)
+      }, res = pdf)
+      minimized_idx = y_minimizer %in% intersect(idx, pareto_idx)
+      if (sum(minimized_idx) < 2) stop("Not enough valid weights")
+      wts = apply(possible_weights[minimized_idx, ], 2, range)
+      # Last column is superfluous
+      wts[, -ncol(wts)]
     },
     set_possible_projections = function(measure_weights) {
       if(self$n_objectives == 2L) {
@@ -114,15 +143,15 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
         assert_matrix(measure_weights, nrows = self$n_objectives - 1,
           ncols = self$n_objectives - 1, mode = "numeric")
       }
-      opt_problem = mlrMBO:::getOptStateOptProblem(self$opt_state)
+
       # Generate possible_weights matrix (this specifies the range
-      # of allowed projections
+      # of allowed projections)
       ncomb = ceiling(100000^(1 / self$n_objectives))
       ncomb = ncomb * 1 / min(1, min(abs(apply(measure_weights, 1, diff)))) # scale ncomb by range between weights
       possible_weights = mlrMBO:::combWithSum(ncomb, self$n_objectives) / ncomb
       # Reorder weights
       vars = apply(possible_weights, 1, var)
-      possible_weights = rbind(diag(self$n_objectives), possible_weights[!vars == max(vars),])
+      possible_weights = rbind(diag(self$n_objectives), possible_weights[!(vars == max(vars)),])
       # Force in bisector
       possible_weights = rbind(possible_weights, rep(1/self$n_objectives, self$n_objectives))
 
@@ -132,6 +161,9 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
         possible_weights[, i] >= min(wt) & possible_weights[, i] <= max(wt)
       })
       possible_weights = possible_weights[apply(keep_weights, 1, all),]
+
+
+      opt_problem = mlrMBO:::getOptStateOptProblem(self$opt_state)
       mlrMBO:::setOptProblemAllPossibleWeights(opt_problem, possible_weights)
     },
     plot_opt_path = plot_opt_path,
@@ -158,7 +190,7 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
     .mbo_learner = NULL,
     fit_iteration = function(plot, subevals = TRUE) {
       log4r::debug(private$.logger, catf("Fitting Iteration %s", private$.watch$current_iter))
-      prop = proposePoints(self$opt_state)
+      prop = suppressWarnings(proposePoints(self$opt_state))
       rownames(prop$prop.points) = NULL
       x = trafoValue(private$.parset, dfRowsToList(df = prop$prop.points, par.set = self$parset)[[1]])
       y = private$.obj_fun(x, subevals = TRUE)
@@ -172,10 +204,12 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
             xy_pareto = get_univariate_set(self$opt_state, xy_pareto, private$.measures)
           }
           if (length(xy_pareto$y) > 0) {
-            updateSMBO(self$opt_state, x = rbind(prop$prop.points, xy_pareto$x), y = c(list(y), xy_pareto$y))
+            suppressWarnings(updateSMBO(self$opt_state, x = rbind(prop$prop.points, xy_pareto$x), y = c(list(y), xy_pareto$y)))
+          } else {
+            suppressWarnings(updateSMBO(self$opt_state, x = prop$prop.points, y = y))
           }
         }
-      } else updateSMBO(self$opt_state, x = prop$prop.points, y = y)
+      } else suppressWarnings(updateSMBO(self$opt_state, x = prop$prop.points, y = y))
       self$watch$increment_iter()
       if(plot) self$plot_opt_path()
     },
@@ -281,8 +315,8 @@ get_subevals = function(prop, y) {
     x = prop$prop.points
     x$nrounds = x$threshold = NULL
     x = cbind(x, subevals$x)
-    if (is.null(dim(subevals$y))) subevals$y = data.frame(subevals$y)
-    return(list(x = x[, colnames(prop$prop.points)], y = convertRowsToList(subevals$y)))
+    if (is.null(dim(subevals$y))) subevals$y = as.data.frame(t(subevals$y))
+    return(list(x = x[, colnames(prop$prop.points)], y = convertRowsToList(subevals$y, name.vector = TRUE)))
   } else {
     return(NULL)
   }

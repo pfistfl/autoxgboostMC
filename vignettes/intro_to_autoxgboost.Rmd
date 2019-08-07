@@ -275,3 +275,12 @@ Choose a budget, start the process, visualize progress wrt. some measures
 Tab2: Pareto Front + Select range for measures + Select importance of measures.
 
 Tab 3: Dataset overview
+
+```{r}
+axgb = AutoxgboostMC$new(train.task, measures = list(auc, timetrain))
+axgb$fit(time_budget = 10L)
+axgb$get_opt_path_df()
+pref = list(auc = c(best = 1, worst = 0.75), timetrain = c(best = 0, worst = .03))
+wts = axgb$optimizer$set_objective_preferences(pref)
+axgb$plot_pareto_front_projections(wt_range = wts)
+```

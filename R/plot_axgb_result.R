@@ -40,16 +40,24 @@ plot_pareto_front_projections = function(x = NULL, y = NULL, wt_range = c(0, 1),
   measures = setNames(self$measures, self$measure_ids)
   minimize = vlapply(measures[c(x, y)], function(x) x$minimize)
 
+  # Data for Pareto front
   front_data = as.data.frame(getOptPathParetoFront(mlrMBO:::getOptStateOptPath(self$optimizer$opt_state)))
   front_data = perf_retrafo_opt_path(front_data, self$measures)
   df = get_pareto_data_nonconvex(front_data, x, y, measures[[x]]$minimize)
-  points_normal = normalize(df$points, "range")
+
+  # Which points on the Pareto front optimize the augmented Tchebyscheff norm?
+  y_full = getOptPathY(mlrMBO:::getOptStateOptPath(self$optimizer$opt_state))
+  y_full = perf_retrafo_opt_path(data.frame(y_full), self$measures)
+  points_normal = normalize(y_full, "range", margin = 2)
+  points_normal = points_normal[order(points_normal[[x]], decreasing = measures[[x]]$minimize),]
   best_points = viapply(wt_range, function(wt) {
     wt = c(wt, 1 - wt)
     wt[!minimize] = - wt[!minimize]
-    best = which.min(points_normal[, x] * wt[1] + points_normal[, y] * wt[2])
+    y2 = as.matrix(points_normal[rownames(front_data),]) %*% diag(wt)
+    which.min(apply(y2, 1, max) + 0.05 * rowSums(y2))
   })
 
+  # Data for focus area (blue line)
   df_focus = get_pareto_data_nonconvex(df$points[seq(from = best_points[1], to = best_points[2]), ],
     x, y, measures[[x]]$minimize)
 
@@ -78,7 +86,7 @@ plot_opt_path = function() {
   opt_df = opt_df[!is.na(opt_df$prop.type), ] # Delete Subevals
   opt_df$iter = seq_len(nrow(opt_df))
   cumbest = function(x, minimize) {if(minimize) cummin(x) else cummax(x)}
-  measure_minimize = setNames(self$measure_minimize, self$measure_ids)
+  measure_minimize = setNames(vlapply(private$.measures, function(x) x$minimize), self$measure_ids)
   pdf = do.call("rbind", lapply(self$measure_ids, function(x)
     data.frame("value" = opt_df[,x], "measure" = x, "iter" = opt_df$iter, "value_opt" = cumbest(opt_df[,x], measure_minimize[x]))))
   p = ggplot2::ggplot(pdf) +
