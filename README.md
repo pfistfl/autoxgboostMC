@@ -63,7 +63,7 @@ axgb$plot_opt_path()
 axgb$plot_opt_result()
 axgb$plot_pareto_front()
 ```
-![Result of an AutoxgboostMC run](inst/result_plot.pdf)
+![Result of an AutoxgboostMC run](https://github.com/pfistfl/autoxgboostMC/blob/master/inst/result_plot.pdf)
 
 ## Pipeline
 
