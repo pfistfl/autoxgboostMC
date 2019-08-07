@@ -21,10 +21,10 @@ r_packages:
   - mlrCPO
 
 r_github_packages:
-  - jimhester/covr
+  - r-lib/covr
   - eddelbuettel/anytime
 
 warnings_are_errors: false
 
 after_success:
-  - Rscript -e 'covr::coveralls()'
+  - Rscript -e 'covr::codecov()'
