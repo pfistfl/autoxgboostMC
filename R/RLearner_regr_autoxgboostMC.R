@@ -33,7 +33,7 @@ trainLearner.regr.autoxgboostMC = function(.learner, .task, .subset, .weights = 
 
   .task = subsetTask(.task, .subset)
   axgb = AutoxgboostMC$new(.task, measures = measures)
-  axgb$fit(time.budget = time.budget, iterations = iteratinos)
+  axgb$fit(time.budget = time.budget, iterations = iterations)
   return(axgb)
 }
 
