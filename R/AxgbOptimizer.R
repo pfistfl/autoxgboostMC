@@ -208,7 +208,7 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
           } else {
             suppressWarnings(updateSMBO(self$opt_state, x = prop$prop.points, y = y))
           }
-        }
+        } else suppressWarnings(updateSMBO(self$opt_state, x = prop$prop.points, y = y))
       } else suppressWarnings(updateSMBO(self$opt_state, x = prop$prop.points, y = y))
       self$watch$increment_iter()
       if(plot) self$plot_opt_path()
@@ -227,7 +227,7 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
 
       # Get fast initial models
       init_parset = private$.parset
-      init_parset$pars$nrounds$upper = 15L
+      init_parset$pars$nrounds$upper = 30L
       des = generateDesign(n = private$.design_size, init_parset)
 
       # Doing one iteration here to evaluate design, saves a lot of redundancy.
