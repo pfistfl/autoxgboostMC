@@ -76,6 +76,7 @@ fix_factors %>% impact_encoding | dummy encoding %>% drop_constant_feats %>% lea
 To be added:
 - Categorical Encoding using mixed models
 - Imputation
+- Fairness Post-Processing
 
 Eventually:
 - Ensemble Stacking
