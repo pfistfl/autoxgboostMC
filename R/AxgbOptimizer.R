@@ -203,7 +203,7 @@ AxgbOptimizerSMBO = R6::R6Class("AxgbOptimizerSMBO",
           } else {
             xy_pareto = get_univariate_set(self$opt_state, xy_pareto, private$.measures)
           }
-          if (length(xy_pareto$y) > 0) {
+          if (length(Filter(Negate(is.null), xy_pareto$y)) > 0) {
             suppressWarnings(updateSMBO(self$opt_state, x = rbind(prop$prop.points, xy_pareto$x), y = c(list(y), xy_pareto$y)))
           } else {
             suppressWarnings(updateSMBO(self$opt_state, x = prop$prop.points, y = y))

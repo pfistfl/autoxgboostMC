@@ -42,7 +42,7 @@ In this case we choose auc as a measure.
 Afterwards we call the `.$fit` method with a time-budget of $15$ seconds.
 This runs the AutoML process.
 
-```{r, message=FALSE}
+```{r, message=FALSE, warning = FALSE}
 axgb = AutoxgboostMC$new(train.task, measures = list(auc))
 axgb$fit(time_budget = 10L, plot = FALSE)
 ```
@@ -53,11 +53,16 @@ We can print the result:
 axgb
 ```
 
+or visualize the progress:
+
+```{r}
+axgb$plot_opt_path()
+```
 
 If we are not satisfied, we can continue the search process for more iterations:
 
 ```{r}
-axgb$fit(time_budget = 5L)
+axgb$fit(time_budget = 5L, plot = FALSE)
 ```
 
 And then use the resulting model to predict on our test data.
@@ -68,7 +73,8 @@ axgb$fit_final_model()
 axgb$predict(test.task)
 ```
 
-and create a Parallel Coordinates Plot:
+
+The effect of hyperparameters can be visualized using a Parallel Coordinates Plot:
 
 ```{r}
 axgb$plot_parallel_coordinates()
