@@ -1,4 +1,4 @@
-#' @title Fit and optimize a xgboost model pipeline for multiple criteria
+fn#' @title Fit and optimize a xgboost model pipeline for multiple criteria
 #' @format [R6::R6Class]
 #'
 #' @description

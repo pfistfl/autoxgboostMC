@@ -1,3 +1,4 @@
+
 Package: autoxgboostMC
 Title: Automatic Preprocessing, Fitting and Tuning for xgboost using multiple criteria
 Version: 0.0.0.9000
@@ -62,3 +63,5 @@ Collate:
     'zzz.R'
 Remotes:
     github::compstat-lmu/paper_2019_iml_measures
+    github::johnmyleswhite/log4r
+    github::mlr-org/mlrMBO
