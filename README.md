@@ -16,7 +16,7 @@
     devtools::install_github("johnmyleswhite/log4r")
     devtools::install_github("mlr-org/mlrMBO")
     # Install package
-    devtools::install_github("ja-thomas/autoxgboostMC")
+    devtools::install_github("pfistfl/autoxgboostMC")
     ```
 
 # General overview
