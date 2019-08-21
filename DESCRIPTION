@@ -62,6 +62,6 @@ Collate:
     'measures.R'
     'zzz.R'
 Remotes:
-    github::compstat-lmu/paper_2019_iml_measures
-    github::johnmyleswhite/log4r
+    github::compstat-lmu/paper_2019_iml_measures,
+    github::johnmyleswhite/log4r,
     github::mlr-org/mlrMBO
