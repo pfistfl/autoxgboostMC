@@ -45,7 +45,7 @@ get_univariate_set = function(opt_state, xy, measures) {
   odf = as.data.frame(opt_state$opt.path)
   idx = which(unlist(xy$y) <= quantile(c(odf[, y.names], unlist(xy$y)), 0.1))
   idx = intersect(seq_len(nrow(xy$x)), idx)
-  list(x = xy$x[idx, ], y = xy$y[idx])
+  list(x = xy$x[idx, ], y = unlist(xy$y)[idx])
 }
 
 

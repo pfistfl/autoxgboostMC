@@ -2,7 +2,7 @@
 title: "Introduction to AutoxgboostMC"
 author: "Florian Pfisterer"
 date: "`r Sys.Date()`"
-output: rmarkdown::html_vignette
+output: rmarkdown::pdf_document
 vignette: >
   %\VignetteIndexEntry{Introduction to AutoxgboostMC}
   %\VignetteEngine{knitr::rmarkdown}
@@ -76,7 +76,7 @@ axgb$predict(test.task)
 
 The effect of hyperparameters can be visualized using a Parallel Coordinates Plot:
 
-```{r}
+```{r, eval = FALSE}
 axgb$plot_parallel_coordinates()
 ```
 
@@ -99,7 +99,6 @@ And visualize:
 
 ```{r}
 axgb$plot_pareto_front()
-axgb$plot_parallel_coordinates()
 axgb$plot_opt_result()
 ```
 
@@ -282,7 +281,9 @@ Tab2: Pareto Front + Select range for measures + Select importance of measures.
 
 Tab 3: Dataset overview
 
-```{r}
+## Under development: Using measures:
+
+```{r, eval = FALSE}
 axgb = AutoxgboostMC$new(train.task, measures = list(auc, timetrain))
 axgb$fit(time_budget = 10L)
 axgb$get_opt_path_df()
