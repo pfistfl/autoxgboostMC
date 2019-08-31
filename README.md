@@ -9,7 +9,9 @@
 
 ## Status:
 The software is still heavily under construction!
+
 Examples on how to use the software be found in the vignette!
+
 
 
 * Installing the development version
