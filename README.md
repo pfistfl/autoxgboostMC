@@ -7,6 +7,11 @@
 [![Codecov test coverage](https://codecov.io/gh/pfistfl/autoxgboostMC/branch/master/graph/badge.svg)](https://codecov.io/gh/pfistfl/autoxgboostMC?branch=master)
 
 
+## Status:
+The software is still heavily under construction!
+Examples on how to use the software be found in the vignette!
+
+
 * Installing the development version
 
     ```splus
