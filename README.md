@@ -6,13 +6,13 @@
 [![Build Status](https://travis-ci.org/pfistfl/autoxgboostMC.svg?branch=master)](https://travis-ci.org/pfistfl/autoxgboostMC)
 [![Codecov test coverage](https://codecov.io/gh/pfistfl/autoxgboostMC/branch/master/graph/badge.svg)](https://codecov.io/gh/pfistfl/autoxgboostMC?branch=master)
 
+**Status**
 
-## Status:
-The software is still heavily under construction!
+**The software is still heavily under construction!**
 
 Examples on how to use the software be found in the vignette!
 
-
+--- 
 
 * Installing the development version
 
